@@ -1,0 +1,98 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  EXPIRED
+}
+
+// Models
+
+model Tenant {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  userId    String   @unique // Links to Supabase auth.users
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  agents Agent[]
+  leads  Lead[]
+
+  @@map("tenants")
+}
+
+model Agent {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  name       String
+  knowledge  String   @db.Text // Plain text knowledge base for POC
+  publicLink String   @unique @default(uuid()) // UUID for public booking link
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leads  Lead[]
+
+  // Indexes
+  @@index([tenantId])
+  @@index([publicLink])
+  @@map("agents")
+}
+
+model Lead {
+  id        String    @id @default(uuid()) @db.Uuid
+  agentId   String    @db.Uuid
+  tenantId  String    @db.Uuid // For multi-tenant isolation
+  name      String
+  email     String
+  bookedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  agent    Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  // Indexes
+  @@index([agentId])
+  @@index([tenantId])
+  @@index([email])
+  @@map("leads")
+}
+
+model Booking {
+  id          String        @id @default(uuid()) @db.Uuid
+  leadId      String        @db.Uuid
+  scheduledAt DateTime
+  status      BookingStatus @default(PENDING)
+  expiresAt   DateTime // 3 days from creation
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  // Indexes
+  @@index([leadId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("bookings")
+}
