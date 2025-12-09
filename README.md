@@ -5,6 +5,7 @@ A modern, full-stack TypeScript monorepo for building AI-powered sales agent app
 ## 🚀 Tech Stack
 
 ### Frontend (`apps/web`)
+
 - **Next.js 15** - React framework with App Router
 - **TypeScript** - Type-safe development
 - **Tailwind CSS** - Utility-first styling
@@ -12,16 +13,19 @@ A modern, full-stack TypeScript monorepo for building AI-powered sales agent app
 - **Server Actions** - Server-side data mutations
 
 ### Backend (`apps/api`)
+
 - **NestJS** - Progressive Node.js framework
 - **Prisma** - Type-safe ORM
 - **PostgreSQL** - Primary database (via Supabase)
 - **class-validator** - DTO validation
 
 ### Shared (`packages/shared`)
+
 - Shared TypeScript types and utilities
 - Used across both frontend and backend
 
 ### Infrastructure
+
 - **Turborepo** - High-performance build system
 - **npm workspaces** - Monorepo package management
 - **Supabase** - Authentication & PostgreSQL hosting
@@ -70,12 +74,14 @@ veezy/
 ### Installation
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/akvinayaktiwari/veezy.git
    cd veezy
    ```
 
 2. **Install dependencies**
+
    ```bash
    npm install
    ```
@@ -83,6 +89,7 @@ veezy/
 3. **Set up environment variables**
 
    **For `apps/web/.env.local`:**
+
    ```env
    NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
@@ -91,6 +98,7 @@ veezy/
    ```
 
    **For `apps/api/.env`:**
+
    ```env
    DATABASE_URL=postgresql://user:password@host:5432/database
    SUPABASE_URL=your_supabase_project_url
@@ -100,6 +108,7 @@ veezy/
    ```
 
 4. **Set up the database**
+
    ```bash
    cd apps/api
    npx prisma db push
@@ -107,6 +116,7 @@ veezy/
    ```
 
 5. **Run development servers**
+
    ```bash
    npm run dev
    ```
@@ -165,16 +175,19 @@ model Booking {
 ## 📦 Available Scripts
 
 ### Root
+
 - `npm run dev` - Start all apps in development mode
 - `npm run build` - Build all apps for production
 
 ### Apps/Web (Next.js)
+
 - `npm run dev` - Start Next.js dev server
 - `npm run build` - Build for production
 - `npm run start` - Start production server
 - `npm run lint` - Run ESLint
 
 ### Apps/API (NestJS)
+
 - `npm run dev` - Start NestJS in watch mode
 - `npm run build` - Build for production
 - `npm run start` - Start production server
@@ -225,6 +238,7 @@ This project is licensed under the UNLICENSED license.
 ## 👨‍💻 Author
 
 **Vinayak Tiwari**
+
 - GitHub: [@akvinayaktiwari](https://github.com/akvinayaktiwari)
 
 ## 🙏 Acknowledgments
