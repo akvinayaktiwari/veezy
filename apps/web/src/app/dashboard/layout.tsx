@@ -1,44 +1,22 @@
-'use client';
+import { redirect } from 'next/navigation';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { DashboardLayoutClient } from '../../components/dashboard/dashboard-layout-client';
 
-import { useState } from 'react';
-import { DashboardHeader } from '@/components/dashboard/dashboard-header';
-import { DashboardSidebar } from '@/components/dashboard/dashboard-sidebar';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
-
-interface DashboardLayoutProps {
+export default async function DashboardLayout({
+  children,
+}: {
   children: React.ReactNode;
-  userEmail?: string;
-}
+}) {
+  const supabase = await createSupabaseServerClient();
+  const { data: { session } } = await supabase.auth.getSession();
 
-export default function DashboardLayout({ children, userEmail }: DashboardLayoutProps) {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  if (!session) {
+    redirect('/auth/login');
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <DashboardHeader
-        onMenuClick={() => setIsMobileMenuOpen(true)}
-        userEmail={userEmail}
-      />
-
-      {/* Desktop Sidebar */}
-      <div className="hidden lg:block">
-        <DashboardSidebar />
-      </div>
-
-      {/* Mobile Sidebar */}
-      <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-        <SheetContent side="left" className="p-0 w-64">
-          <div className="pt-4">
-            <DashboardSidebar />
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      {/* Main Content */}
-      <main className="pt-16 lg:pl-64">
-        <div className="p-6">{children}</div>
-      </main>
-    </div>
+    <DashboardLayoutClient userEmail={session.user.email}>
+      {children}
+    </DashboardLayoutClient>
   );
 }

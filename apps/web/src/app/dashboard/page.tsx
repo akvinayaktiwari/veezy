@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import DashboardLayout from './layout';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { EmptyState } from '@/components/dashboard/empty-state';
 import {
@@ -58,7 +57,6 @@ async function getOrCreateTenant(userId: string, userName: string): Promise<Tena
 
 export default async function DashboardPage() {
   const supabase = await createSupabaseServerClient();
-  
   const { data: { session } } = await supabase.auth.getSession();
   
   if (!session) {
@@ -75,52 +73,50 @@ export default async function DashboardPage() {
   const hasAgents = false;
 
   return (
-    <DashboardLayout userEmail={user.email}>
-      <div className="space-y-6">
-        {/* Welcome Section */}
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Welcome back, {tenant?.name || userName}!
-          </h1>
-          <p className="text-gray-500 mt-1">
-            Here's what's happening with your AI sales agents
-          </p>
-        </div>
-
-        {/* Stats Grid */}
-        {hasAgents ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <StatCard
-              title="Active Agents"
-              value={3}
-              icon={<UserGroupIcon className="h-6 w-6" />}
-              trend={{ value: 12, isPositive: true }}
-            />
-            <StatCard
-              title="Total Leads"
-              value={247}
-              icon={<ChartBarIcon className="h-6 w-6" />}
-              trend={{ value: 8, isPositive: true }}
-            />
-            <StatCard
-              title="Bookings"
-              value={18}
-              icon={<CalendarIcon className="h-6 w-6" />}
-              trend={{ value: 3, isPositive: false }}
-            />
-          </div>
-        ) : (
-          <EmptyState
-            icon={<UserGroupIcon className="h-16 w-16" />}
-            title="No agents yet"
-            description="Create your first AI sales agent to start capturing leads and booking meetings automatically."
-            action={{
-              label: 'Create Your First Agent',
-              href: '/dashboard/agents/create',
-            }}
-          />
-        )}
+    <div className="space-y-6">
+      {/* Welcome Section */}
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">
+          Welcome back, {tenant?.name || userName}!
+        </h1>
+        <p className="text-gray-500 mt-1">
+          Here's what's happening with your AI sales agents
+        </p>
       </div>
-    </DashboardLayout>
+
+      {/* Stats Grid */}
+      {hasAgents ? (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <StatCard
+            title="Active Agents"
+            value={3}
+            icon={<UserGroupIcon className="h-6 w-6" />}
+            trend={{ value: 12, isPositive: true }}
+          />
+          <StatCard
+            title="Total Leads"
+            value={247}
+            icon={<ChartBarIcon className="h-6 w-6" />}
+            trend={{ value: 8, isPositive: true }}
+          />
+          <StatCard
+            title="Bookings"
+            value={18}
+            icon={<CalendarIcon className="h-6 w-6" />}
+            trend={{ value: 3, isPositive: false }}
+          />
+        </div>
+      ) : (
+        <EmptyState
+          icon={<UserGroupIcon className="h-16 w-16" />}
+          title="No agents yet"
+          description="Create your first AI sales agent to start capturing leads and booking meetings automatically."
+          action={{
+            label: 'Create Your First Agent',
+            href: '/dashboard/agents/create',
+          }}
+        />
+      )}
+    </div>
   );
 }
