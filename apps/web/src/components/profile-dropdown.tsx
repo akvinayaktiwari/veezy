@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { User } from '@supabase/supabase-js'
-import { signOut } from '@/app/actions/auth'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +20,7 @@ export function ProfileDropdown() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
+  const router = useRouter()
 
   useEffect(() => {
     setMounted(true)
@@ -50,10 +51,20 @@ export function ProfileDropdown() {
 
   const handleSignOut = async () => {
     try {
-      toast.loading('Signing out...')
-      await signOut()
+      const supabase = createSupabaseBrowserClient()
+      const { error } = await supabase.auth.signOut()
+      
+      if (error) {
+        console.error('Sign out error:', error)
+        toast.error('Failed to sign out. Please try again.')
+        return
+      }
+      
       toast.success('Signed out successfully')
+      router.push('/auth/login')
+      router.refresh()
     } catch (error) {
+      console.error('Failed to sign out:', error)
       toast.error('Failed to sign out. Please try again.')
     }
   }
