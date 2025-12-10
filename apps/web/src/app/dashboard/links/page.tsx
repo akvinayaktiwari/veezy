@@ -1,53 +1,46 @@
 'use client'
 
-import { useAgent } from '@/contexts/agent-context';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LinkIcon } from '@heroicons/react/24/outline';
+import { useAgent } from '@/contexts/agent-context'
+import { Badge } from '@/components/ui/badge'
+import { FeaturePlaceholder } from '@/components/dashboard/feature-placeholder'
+import { LinkIcon } from '@heroicons/react/24/outline'
 
 export default function LinksPage() {
-  const { selectedAgent, selectedAgentId } = useAgent();
+  const { selectedAgent, selectedAgentId } = useAgent()
 
   if (!selectedAgentId) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <p className="text-gray-500">Please select an agent to manage booking links</p>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <p className="text-muted-foreground">Please select an agent</p>
       </div>
-    );
+    )
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="flex items-center gap-2">
-          <h1 className="text-3xl font-bold text-gray-900">Booking Links</h1>
-          <Badge variant="secondary">Coming Soon</Badge>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Booking Links</h1>
+          <p className="text-muted-foreground mt-1">
+            For agent: {selectedAgent?.name}
+          </p>
         </div>
-        <p className="text-gray-500 mt-1">
-          For agent: {selectedAgent?.name}
-        </p>
+        <Badge variant="secondary">Coming Soon</Badge>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <LinkIcon className="h-5 w-5" />
-            Calendar Integration
-          </CardTitle>
-          <CardDescription>
-            Create shareable booking links for your calendar
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ul className="space-y-2 text-sm text-gray-600">
-            <li>• Generate custom booking URLs</li>
-            <li>• Calendar sync (Google, Outlook, CalDAV)</li>
-            <li>• Availability management</li>
-            <li>• Automated confirmation emails</li>
-            <li>• Booking page customization</li>
-          </ul>
-        </CardContent>
-      </Card>
+      <FeaturePlaceholder
+        icon={<LinkIcon className="h-16 w-16" />}
+        title="Custom Booking Links"
+        description={`Create unique booking links for different campaigns and channels for ${selectedAgent?.name}`}
+        features={[
+          'Multiple booking links per agent',
+          'Campaign-specific links',
+          'UTM parameter tracking',
+          'Custom link expiry times',
+          'QR code generation',
+          'Link performance analytics',
+        ]}
+      />
     </div>
-  );
+  )
 }
