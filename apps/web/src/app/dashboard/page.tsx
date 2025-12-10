@@ -9,7 +9,7 @@ import {
   PlusIcon,
 } from '@heroicons/react/24/outline';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000';
 
 interface Tenant {
   id: string;
@@ -75,7 +75,7 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Welcome Section */}
-      <div>
+      <div className="text-center">
         <h1 className="text-3xl font-bold text-gray-900">
           Welcome back, {tenant?.name || userName}!
         </h1>
