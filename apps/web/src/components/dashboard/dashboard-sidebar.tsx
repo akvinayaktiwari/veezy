@@ -1,9 +1,7 @@
-'use client';
+'use client'
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { cn } from '@/lib/utils';
-import { Separator } from '@/components/ui/separator';
+import { usePathname } from 'next/navigation'
+import { NavItem } from './nav-item'
 import {
   HomeIcon,
   ChartBarIcon,
@@ -12,128 +10,46 @@ import {
   ArrowUpTrayIcon,
   EnvelopeIcon,
   Cog6ToothIcon,
-} from '@heroicons/react/24/outline';
+} from '@heroicons/react/24/outline'
 
-const navigation = [
-  {
-    name: 'Dashboard',
-    href: '/dashboard',
-    icon: HomeIcon,
-  },
-  {
-    name: 'Lead Analytics',
-    href: '/dashboard/analytics',
-    icon: ChartBarIcon,
-  },
-  {
-    name: 'Knowledge Base',
-    href: '/dashboard/knowledge',
-    icon: BookOpenIcon,
-  },
-  {
-    name: 'Booking Links',
-    href: '/dashboard/links',
-    icon: LinkIcon,
-  },
-];
+const navItems = [
+  { href: '/dashboard', label: 'Dashboard', icon: HomeIcon },
+  { href: '/dashboard/analytics', label: 'Analytics', icon: ChartBarIcon },
+  { href: '/dashboard/knowledge', label: 'Knowledge', icon: BookOpenIcon },
+  { href: '/dashboard/links', label: 'Links', icon: LinkIcon },
+  { href: '/dashboard/import', label: 'Import', icon: ArrowUpTrayIcon },
+  { href: '/dashboard/email', label: 'Email', icon: EnvelopeIcon },
+  { href: '/dashboard/settings', label: 'Settings', icon: Cog6ToothIcon },
+]
 
-const secondaryNavigation = [
-  {
-    name: 'Lead Import',
-    href: '/dashboard/import',
-    icon: ArrowUpTrayIcon,
-  },
-  {
-    name: 'Email Campaigns',
-    href: '/dashboard/email',
-    icon: EnvelopeIcon,
-  },
-];
+interface DashboardSidebarProps {
+  isCollapsed?: boolean
+  isMobile?: boolean
+  onNavigate?: () => void
+}
 
-const settingsNavigation = [
-  {
-    name: 'Settings',
-    href: '/dashboard/settings',
-    icon: Cog6ToothIcon,
-  },
-];
-
-export function DashboardSidebar() {
-  const pathname = usePathname();
+export function DashboardSidebar({
+  isCollapsed = false,
+  isMobile = false,
+  onNavigate,
+}: DashboardSidebarProps) {
+  const pathname = usePathname()
 
   return (
-    <aside className="fixed left-0 top-16 bottom-0 w-64 bg-white border-r overflow-y-auto">
-      <nav className="p-4 space-y-6">
-        {/* Primary Navigation */}
-        <div className="space-y-1">
-          {navigation.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-700 hover:bg-gray-100'
-                )}
-              >
-                <item.icon className="h-5 w-5" />
-                {item.name}
-              </Link>
-            );
-          })}
-        </div>
-
-        <Separator />
-
-        {/* Secondary Navigation */}
-        <div className="space-y-1">
-          {secondaryNavigation.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-700 hover:bg-gray-100'
-                )}
-              >
-                <item.icon className="h-5 w-5" />
-                {item.name}
-              </Link>
-            );
-          })}
-        </div>
-
-        <Separator />
-
-        {/* Settings Navigation */}
-        <div className="space-y-1">
-          {settingsNavigation.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-700 hover:bg-gray-100'
-                )}
-              >
-                <item.icon className="h-5 w-5" />
-                {item.name}
-              </Link>
-            );
-          })}
-        </div>
+    <div className="flex h-full flex-col gap-2 py-4 px-3">
+      <nav className="flex flex-col gap-1">
+        {navItems.map((item) => (
+          <NavItem
+            key={item.href}
+            href={item.href}
+            icon={<item.icon />}
+            label={item.label}
+            isActive={pathname === item.href}
+            isCollapsed={isCollapsed && !isMobile}
+            onClick={onNavigate}
+          />
+        ))}
       </nav>
-    </aside>
-  );
+    </div>
+  )
 }
