@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Bars3Icon, PlusIcon } from '@heroicons/react/24/outline';
 import { AgentSelector } from './agent-selector';
 import { ProfileDropdown } from '@/components/profile-dropdown';
+import Link from 'next/link';
 
 interface DashboardHeaderProps {
   onMenuClick: () => void;
@@ -35,10 +36,12 @@ export function DashboardHeader({ onMenuClick, userEmail }: DashboardHeaderProps
         {/* Center Section - Agent Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2">
           <AgentSelector />
-          <Button variant="outline" size="sm" className="gap-1.5">
-            <PlusIcon className="h-4 w-4" />
-            <span className="hidden md:inline">Create Agent</span>
-            <span className="hidden sm:inline md:hidden">Create</span>
+          <Button variant="outline" size="sm" className="gap-1.5" asChild>
+            <Link href="/dashboard/agents/create">
+              <PlusIcon className="h-4 w-4" />
+              <span className="hidden md:inline">Create Agent</span>
+              <span className="hidden sm:inline md:hidden">Create</span>
+            </Link>
           </Button>
         </div>
 
