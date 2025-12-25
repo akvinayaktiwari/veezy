@@ -1,26 +1,46 @@
-import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+'use client'
 
-export default async function ImportPage() {
+import { useAgent } from '@/contexts/agent-context'
+import { Badge } from '@/components/ui/badge'
+import { FeaturePlaceholder } from '@/components/dashboard/feature-placeholder'
+import { ArrowUpTrayIcon } from '@heroicons/react/24/outline'
+
+export default function ImportPage() {
+  const { selectedAgent, selectedAgentId } = useAgent()
+
+  if (!selectedAgentId) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <p className="text-muted-foreground">Please select an agent</p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
-      <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-900">Import Leads</h1>
-        <p className="text-gray-500 mt-1">
-          Upload and import leads from CSV, Excel, or integrate with your CRM
-        </p>
-      </div>
-
-      <div className="flex justify-center">
-        <div className="max-w-lg w-full flex flex-col items-center justify-center py-10 px-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-          <ArrowDownTrayIcon className="h-16 w-16 text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
-            Import Features Coming Soon
-          </h3>
-          <p className="text-gray-500 text-center">
-            Bulk import leads from various sources and sync with popular CRM platforms.
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Lead Import</h1>
+          <p className="text-muted-foreground mt-1">
+            For agent: {selectedAgent?.name}
           </p>
         </div>
+        <Badge variant="secondary">Coming Soon</Badge>
       </div>
+
+      <FeaturePlaceholder
+        icon={<ArrowUpTrayIcon className="h-16 w-16" />}
+        title="Bulk Lead Import"
+        description={`Import leads from CSV and send booking invitations automatically for ${selectedAgent?.name}`}
+        features={[
+          'CSV file upload with validation',
+          'Field mapping interface',
+          'Bulk email invitations',
+          'Import history and logs',
+          'Duplicate detection',
+          'Schedule import campaigns',
+        ]}
+      />
     </div>
-  );
+  )
 }

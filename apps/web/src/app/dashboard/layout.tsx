@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { DashboardLayoutClient } from '../../components/dashboard/dashboard-layout-client';
+import { AgentProvider } from '@/contexts/agent-context';
 
 export default async function DashboardLayout({
   children,
@@ -15,8 +16,10 @@ export default async function DashboardLayout({
   }
 
   return (
-    <DashboardLayoutClient userEmail={session.user.email}>
-      {children}
-    </DashboardLayoutClient>
+    <AgentProvider>
+      <DashboardLayoutClient userEmail={session.user.email}>
+        {children}
+      </DashboardLayoutClient>
+    </AgentProvider>
   );
 }
