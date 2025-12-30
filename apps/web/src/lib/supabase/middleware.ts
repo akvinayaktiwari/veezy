@@ -29,7 +29,7 @@ export async function refreshAuthSession(request: NextRequest) {
   )
 
   // Skip auth check for public routes
-  const publicPaths = ['/login', '/auth', '/book'];
+  const publicPaths = ['/login', '/auth', '/book', '/meet'];
   const isPublicPath = publicPaths.some(path => request.nextUrl.pathname.startsWith(path));
   
   if (!isPublicPath) {
