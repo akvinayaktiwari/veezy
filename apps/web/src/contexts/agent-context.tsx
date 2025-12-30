@@ -6,6 +6,9 @@ interface Agent {
   id: string
   name: string
   tenantId: string
+  knowledge: string
+  publicLink: string
+  linkExpiryHours: number
   createdAt: string
   updatedAt: string
 }
@@ -17,6 +20,7 @@ interface AgentContextType {
   isLoading: boolean
   error: string | null
   fetchAgents: () => Promise<void>
+  refreshAgents: () => Promise<void>
   selectAgent: (id: string) => void
 }
 
@@ -87,6 +91,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         error,
         fetchAgents,
+        refreshAgents: fetchAgents,
         selectAgent,
       }}
     >
