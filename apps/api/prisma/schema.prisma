@@ -37,13 +37,14 @@ model Tenant {
 }
 
 model Agent {
-  id         String   @id @default(uuid()) @db.Uuid
-  tenantId   String   @db.Uuid
-  name       String
-  knowledge  String   @db.Text // Plain text knowledge base for POC
-  publicLink String   @unique @default(uuid()) // UUID for public booking link
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  name             String
+  knowledge        String   @db.Text // Plain text knowledge base for POC
+  publicLink       String   @unique @default(uuid()) // UUID for public booking link
+  linkExpiryHours  Int      @default(24) // Hours until booking link expires
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   // Relations
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
