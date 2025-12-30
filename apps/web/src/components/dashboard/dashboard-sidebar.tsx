@@ -10,10 +10,12 @@ import {
   ArrowUpTrayIcon,
   EnvelopeIcon,
   Cog6ToothIcon,
+  UserGroupIcon,
 } from '@heroicons/react/24/outline'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: HomeIcon },
+  { href: '/dashboard/agents', label: 'Agents', icon: UserGroupIcon },
   { href: '/dashboard/analytics', label: 'Analytics', icon: ChartBarIcon },
   { href: '/dashboard/knowledge', label: 'Knowledge', icon: BookOpenIcon },
   { href: '/dashboard/links', label: 'Links', icon: LinkIcon },
@@ -35,6 +37,13 @@ export function DashboardSidebar({
 }: DashboardSidebarProps) {
   const pathname = usePathname()
 
+  const isActiveRoute = (href: string) => {
+    if (href === '/dashboard') {
+      return pathname === '/dashboard';
+    }
+    return pathname.startsWith(href);
+  };
+
   return (
     <div className="flex h-full flex-col gap-2 py-4 px-3">
       <nav className="flex flex-col gap-1">
@@ -44,7 +53,7 @@ export function DashboardSidebar({
             href={item.href}
             icon={<item.icon />}
             label={item.label}
-            isActive={pathname === item.href}
+            isActive={isActiveRoute(item.href)}
             isCollapsed={isCollapsed && !isMobile}
             onClick={onNavigate}
           />
