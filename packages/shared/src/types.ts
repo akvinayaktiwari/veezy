@@ -11,10 +11,12 @@ export interface User {
 export interface Agent {
   id: string;
   name: string;
-  userId: string;
-  configuration: AgentConfiguration;
-  createdAt: Date;
-  updatedAt: Date;
+  tenantId: string;
+  knowledge: string;
+  publicLink: string;
+  linkExpiryHours: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AgentConfiguration {
