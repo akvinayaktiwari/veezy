@@ -6,8 +6,8 @@ interface Agent {
   id: string
   name: string
   tenantId: string
-  knowledge: string
   publicLink: string
+  knowledge: string
   linkExpiryHours: number
   createdAt: string
   updatedAt: string

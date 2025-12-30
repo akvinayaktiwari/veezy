@@ -8,7 +8,8 @@ export interface EmptyStateProps {
   description: string;
   action?: {
     label: string;
-    href: string;
+    href?: string;
+    onClick?: () => void;
   };
 }
 
@@ -22,10 +23,13 @@ export function EmptyState({ icon, title, description, action }: EmptyStateProps
           <p className="text-sm text-gray-500 text-center mb-6">
             {description}
           </p>
-          {action && (
+          {action && action.href && (
             <Button asChild>
               <Link href={action.href}>{action.label}</Link>
             </Button>
+          )}
+          {action && action.onClick && !action.href && (
+            <Button onClick={action.onClick}>{action.label}</Button>
           )}
         </CardContent>
       </Card>
