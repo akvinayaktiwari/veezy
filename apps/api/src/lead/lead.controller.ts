@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Param,
   Delete,
   Query,
@@ -11,10 +12,16 @@ import {
 } from '@nestjs/common';
 import { LeadService } from './lead.service';
 import { BookingStatus } from '@prisma/client';
+import { CreateLeadDto } from './dto/create-lead.dto';
 
 @Controller('leads')
 export class LeadController {
   constructor(private readonly leadService: LeadService) {}
+
+  @Post()
+  async create(@Body() createLeadDto: CreateLeadDto) {
+    return this.leadService.create(createLeadDto);
+  }
 
   @Get()
   async findAll(
