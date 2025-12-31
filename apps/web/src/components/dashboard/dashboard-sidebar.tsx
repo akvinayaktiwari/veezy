@@ -10,10 +10,14 @@ import {
   ArrowUpTrayIcon,
   EnvelopeIcon,
   Cog6ToothIcon,
+  UserGroupIcon,
+  CpuChipIcon,
 } from '@heroicons/react/24/outline'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: HomeIcon },
+  { href: '/dashboard/agents', label: 'Agents', icon: CpuChipIcon },
+  { href: '/dashboard/leads', label: 'Leads', icon: UserGroupIcon },
   { href: '/dashboard/analytics', label: 'Analytics', icon: ChartBarIcon },
   { href: '/dashboard/knowledge', label: 'Knowledge', icon: BookOpenIcon },
   { href: '/dashboard/links', label: 'Links', icon: LinkIcon },
