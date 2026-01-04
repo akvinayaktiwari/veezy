@@ -1,10 +1,6 @@
-import { IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 
 export class EndSessionDto {
-  @IsUUID()
-  @IsString()
-  sessionId: string;
-
   @IsOptional()
   @IsString()
   feedback?: string;
