@@ -1,0 +1,2 @@
+# This directory stores downloaded ML models (Vosk, etc.)
+# Models are gitignored and downloaded on first run
