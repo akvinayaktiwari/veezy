@@ -95,9 +95,10 @@ model Booking {
   updatedAt    DateTime      @updatedAt
 
   // Relations
-  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  agent  Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lead         Lead          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  agent        Agent         @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  voiceSession VoiceSession?
 
   // Indexes
   @@index([leadId])
@@ -107,4 +108,26 @@ model Booking {
   @@index([expiresAt])
   @@index([meetingToken])
   @@map("bookings")
+}
+
+model VoiceSession {
+  id              String    @id @default(uuid()) @db.Uuid
+  bookingId       String    @unique @db.Uuid
+  booking         Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  
+  livekitRoomName String    @db.Text
+  sessionId       String    @unique @db.Text
+  transcript      String?   @db.Text
+  
+  startedAt       DateTime  @default(now())
+  endedAt         DateTime?
+  durationSeconds Int?
+  
+  status          String    @default("active")
+  metadata        Json?
+  
+  @@index([bookingId])
+  @@index([sessionId])
+  @@index([status])
+  @@map("voice_sessions")
 }

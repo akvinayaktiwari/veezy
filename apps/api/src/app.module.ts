@@ -7,6 +7,7 @@ import { TenantModule } from './tenant/tenant.module';
 import { AgentModule } from './agent/agent.module';
 import { LeadModule } from './lead/lead.module';
 import { BookingModule } from './booking/booking.module';
+import { VoiceAgentModule } from './voice-agent/voice-agent.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { BookingModule } from './booking/booking.module';
     AgentModule,
     LeadModule,
     BookingModule,
+    VoiceAgentModule,
   ],
   controllers: [AppController],
   providers: [AppService],
