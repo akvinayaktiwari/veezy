@@ -44,8 +44,37 @@ export class VoiceAgentService {
       throw new NotFoundException('Booking not found or expired');
     }
 
+    // Check if there's an existing voice session
     if (booking.voiceSession) {
-      throw new ConflictException('Voice session already active for this booking');
+      // Verify if Python session is still active
+      try {
+        const statusResponse = await fetch(
+          `${this.pythonServiceUrl}/sessions/${booking.voiceSession.sessionId}/status`,
+        );
+        
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json();
+          if (statusData.active) {
+            // Session is truly active, return conflict
+            throw new ConflictException('Voice session already active for this booking');
+          }
+        }
+        
+        // Python session not found or inactive - delete stale DB record to allow new session
+        this.logger.log(`Deleting stale voice session: ${booking.voiceSession.id}`);
+        await this.prisma.voiceSession.delete({
+          where: { id: booking.voiceSession.id },
+        });
+      } catch (error) {
+        if (error instanceof ConflictException) {
+          throw error;
+        }
+        // Python service error or session not found - delete stale record
+        this.logger.log(`Deleting orphaned voice session: ${booking.voiceSession.id}`);
+        await this.prisma.voiceSession.delete({
+          where: { id: booking.voiceSession.id },
+        });
+      }
     }
 
     const roomName = `call_${bookingId}_${Date.now()}`;
@@ -107,6 +136,50 @@ export class VoiceAgentService {
     }
   }
 
+  async getActiveSessionByBooking(bookingId: string) {
+    // Find active voice session for a booking
+    const voiceSession = await this.prisma.voiceSession.findFirst({
+      where: {
+        bookingId: bookingId,
+        status: 'active',
+      },
+    });
+
+    if (!voiceSession) {
+      throw new NotFoundException('No active voice session found for this booking');
+    }
+
+    // Generate a new participant token for rejoining the room
+    try {
+      const response = await fetch(`${this.pythonServiceUrl}/sessions/${voiceSession.sessionId}/rejoin-token`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          roomToken: data.participant_token,
+          roomUrl: voiceSession.livekitRoomName,
+          sessionId: voiceSession.id,
+          roomName: voiceSession.livekitRoomName,
+          status: voiceSession.status,
+        };
+      }
+    } catch (error) {
+      this.logger.warn(`Could not get rejoin token: ${error.message}`);
+    }
+
+    // Fallback: return session info without new token
+    // The frontend may need to restart the session
+    return {
+      sessionId: voiceSession.id,
+      roomName: voiceSession.livekitRoomName,
+      status: voiceSession.status,
+      needsRestart: true,
+    };
+  }
+
   async getSessionStatus(sessionId: string) {
     // Find VoiceSession by sessionId in database
     const voiceSession = await this.prisma.voiceSession.findUnique({
@@ -158,6 +231,9 @@ export class VoiceAgentService {
       throw new NotFoundException('Voice session not found');
     }
 
+    let transcript = '';
+    let duration = 0;
+
     try {
       // Call Python service POST /sessions/{session_id}/end
       const response = await fetch(
@@ -167,48 +243,46 @@ export class VoiceAgentService {
         },
       );
 
-      if (!response.ok) {
-        throw new ServiceUnavailableException(
-          'Python voice agent service unavailable. Please try again.',
-        );
+      if (response.ok) {
+        const data: VoiceSessionEnd = await response.json();
+        transcript = data.transcript || '';
+        duration = data.duration || 0;
+      } else {
+        // Python session not found (404) - just clean up DB
+        this.logger.warn(`Python session not found, cleaning up DB only: ${voiceSession.sessionId}`);
       }
-
-      const data: VoiceSessionEnd = await response.json();
-
-      // Update VoiceSession in database
-      await this.prisma.voiceSession.update({
-        where: { id: sessionId },
-        data: {
-          endedAt: new Date(),
-          transcript: data.transcript,
-          durationSeconds: data.duration,
-          status: 'completed',
-        },
-      });
-
-      // Update related Booking status to COMPLETED
-      await this.prisma.booking.update({
-        where: { id: voiceSession.bookingId },
-        data: { status: 'COMPLETED' },
-      });
-
-      this.logger.log(
-        `Voice session ended: session=${sessionId}, duration=${data.duration}s, transcript_length=${data.transcript?.length || 0}`,
-      );
-
-      // Return final transcript
-      return {
-        success: data.success,
-        transcript: data.transcript,
-        duration: data.duration,
-      };
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof ServiceUnavailableException) {
-        throw error;
-      }
-      this.logger.error(`Failed to end voice session: ${error.message}`);
-      throw new InternalServerErrorException('Failed to end voice session. Check logs.');
+      // Python service unavailable - just clean up DB
+      this.logger.warn(`Python service unavailable, cleaning up DB only: ${error.message}`);
     }
+
+    // Update VoiceSession in database regardless of Python service status
+    await this.prisma.voiceSession.update({
+      where: { id: sessionId },
+      data: {
+        endedAt: new Date(),
+        transcript: transcript || voiceSession.transcript,
+        durationSeconds: duration || voiceSession.durationSeconds,
+        status: 'completed',
+      },
+    });
+
+    // Update related Booking status to COMPLETED
+    await this.prisma.booking.update({
+      where: { id: voiceSession.bookingId },
+      data: { status: 'COMPLETED' },
+    });
+
+    this.logger.log(
+      `Voice session ended: session=${sessionId}, duration=${duration}s`,
+    );
+
+    // Return final transcript
+    return {
+      success: true,
+      transcript: transcript,
+      duration: duration,
+    };
   }
 
   async checkPythonHealth(): Promise<boolean> {

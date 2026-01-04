@@ -16,7 +16,7 @@ Be natural and conversational. Avoid using markdown, bullet points, or numbered 
 class GeminiLLM:
     """Google Gemini Flash integration for conversational AI responses."""
 
-    def __init__(self, api_key: str, model: str = "gemini-1.5-flash"):
+    def __init__(self, api_key: str, model: str = "gemini-2.0-flash"):
         """Initialize Gemini client with Flash model."""
         self.client = genai.Client(api_key=api_key)
         self.model_name = model

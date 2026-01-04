@@ -22,6 +22,13 @@ export class VoiceAgentController {
     return await this.voiceAgentService.startVoiceSession(dto.bookingId);
   }
 
+  @Get('sessions/booking/:bookingId/active')
+  @HttpCode(HttpStatus.OK)
+  async getActiveSessionByBooking(@Param('bookingId') bookingId: string) {
+    // Get active session for a booking (if exists)
+    return await this.voiceAgentService.getActiveSessionByBooking(bookingId);
+  }
+
   @Get('sessions/:sessionId/status')
   @HttpCode(HttpStatus.OK)
   async getSessionStatus(@Param('sessionId') sessionId: string) {

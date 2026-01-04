@@ -83,6 +83,7 @@ class VoiceAgent:
 
     async def start(self, room_name: str, participant_token: str) -> None:
         """Connect to LiveKit room and start processing."""
+        self.room_name = room_name  # Store room name for rejoin functionality
         self.start_time = time.time()
         self.is_active = True
         
@@ -205,17 +206,40 @@ class VoiceAgent:
         
         try:
             import numpy as np
-            audio_array = np.frombuffer(audio_bytes[44:], dtype=np.int16)
+            import io
+            import soundfile as sf
             
-            frame = rtc.AudioFrame(
-                data=audio_array.tobytes(),
-                sample_rate=16000,
-                num_channels=1,
-                samples_per_channel=len(audio_array)
-            )
+            # Read WAV data properly using soundfile
+            buffer = io.BytesIO(audio_bytes)
+            audio_data, sample_rate = sf.read(buffer, dtype='int16')
             
-            await self.audio_source.capture_frame(frame)
+            # Convert to mono if stereo
+            if len(audio_data.shape) > 1:
+                audio_data = audio_data[:, 0]
             
+            # Ensure it's int16
+            audio_array = audio_data.astype(np.int16)
+            
+            # Split into smaller chunks for smoother streaming (20ms chunks)
+            chunk_samples = int(sample_rate * 0.02)  # 20ms chunks
+            
+            for i in range(0, len(audio_array), chunk_samples):
+                if not self.is_speaking or not self.is_active:
+                    break
+                    
+                chunk = audio_array[i:i + chunk_samples]
+                
+                frame = rtc.AudioFrame(
+                    data=chunk.tobytes(),
+                    sample_rate=sample_rate,
+                    num_channels=1,
+                    samples_per_channel=len(chunk)
+                )
+                
+                await self.audio_source.capture_frame(frame)
+                # Small delay to prevent overwhelming the buffer
+                await asyncio.sleep(0.015)
+                
         except Exception as e:
             logger.error(f"Error sending audio: {e}")
 

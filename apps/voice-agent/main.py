@@ -60,6 +60,13 @@ class EndSessionResponse(BaseModel):
     duration: int
 
 
+class RejoinTokenResponse(BaseModel):
+    """Response for rejoin token request."""
+    participant_token: str
+    room_name: str
+    session_id: str
+
+
 class HealthResponse(BaseModel):
     """Response for health check endpoint."""
     status: str
@@ -291,6 +298,31 @@ async def end_session(session_id: str) -> EndSessionResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error ending session: {str(e)}"
         )
+
+
+@app.get("/sessions/{session_id}/rejoin-token", response_model=RejoinTokenResponse)
+async def get_rejoin_token(session_id: str) -> RejoinTokenResponse:
+    """Get a new participant token to rejoin an existing session."""
+    if session_id not in active_sessions:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session not found: {session_id}"
+        )
+    
+    agent = active_sessions[session_id]
+    room_name = agent.room_name
+    
+    # Generate new participant token
+    participant_id = f"user_{uuid.uuid4().hex[:8]}"
+    participant_token = generate_livekit_token(room_name, participant_id, is_agent=False)
+    
+    logger.info(f"Generated rejoin token for session {session_id}, room {room_name}")
+    
+    return RejoinTokenResponse(
+        participant_token=participant_token,
+        room_name=room_name,
+        session_id=session_id
+    )
 
 
 @app.get("/health", response_model=HealthResponse)
