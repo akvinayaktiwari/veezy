@@ -10,6 +10,8 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from livekit import api
 
@@ -212,8 +214,12 @@ async def start_session(request: StartSessionRequest) -> StartSessionResponse:
         agent_config = AgentConfig(
             agent_name=request.agent_name,
             agent_knowledge=request.agent_knowledge,
-            room_name=room_name
+            room_name=room_name,
+            debug_mode=(request.agent_knowledge == "__DEBUG_MODE__")  # Enable debug mode for testing
         )
+        
+        if agent_config.debug_mode:
+            logger.info(f"Starting session in DEBUG MODE (no LLM calls)")
         
         voice_agent = VoiceAgent(config, agent_config)
         
@@ -353,6 +359,19 @@ async def list_sessions() -> dict:
         })
     
     return {"sessions": sessions, "count": len(sessions)}
+
+
+# ============================================================================
+# STT Test Page
+# ============================================================================
+
+@app.get("/test")
+async def serve_test_page():
+    """Serve the STT test page."""
+    test_html_path = os.path.join(os.path.dirname(__file__), "static", "test.html")
+    if os.path.exists(test_html_path):
+        return FileResponse(test_html_path, media_type="text/html")
+    return {"error": "Test page not found"}
 
 
 def setup_cors(app: FastAPI, config: Config) -> None:

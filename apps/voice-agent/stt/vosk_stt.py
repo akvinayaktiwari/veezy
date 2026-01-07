@@ -12,12 +12,13 @@ from vosk import Model, KaldiRecognizer
 
 logger = logging.getLogger(__name__)
 
-VOSK_MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-small-en-in-0.4.zip"
-VOSK_MODEL_NAME = "vosk-model-small-en-in-0.4"
+# Use the larger, more accurate US English model
+VOSK_MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-en-us-0.22.zip"
+VOSK_MODEL_NAME = "vosk-model-en-us-0.22"
 
 
 class VoskSTT:
-    """Streaming speech-to-text using Vosk with Indian English model."""
+    """Streaming speech-to-text using Vosk with US English model."""
 
     def __init__(self, model_path: str):
         """Load Vosk model from disk, raise error if not found."""
@@ -39,6 +40,12 @@ class VoskSTT:
         self.model = Model(str(self.model_path))
         self.recognizer = KaldiRecognizer(self.model, self.sample_rate)
         self.recognizer.SetWords(True)
+        
+        # Configure Vosk to be less aggressive with end-of-speech detection
+        # This makes it wait longer before finalizing transcripts
+        self.recognizer.SetMaxAlternatives(0)  # Disable alternatives for faster processing
+        self.recognizer.SetPartialWords(False)  # Don't split words in partial results
+        
         logger.info("Vosk model loaded successfully")
 
     @staticmethod

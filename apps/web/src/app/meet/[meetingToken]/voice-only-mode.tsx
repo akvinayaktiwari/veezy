@@ -16,7 +16,16 @@ import { AudioControls } from '@/components/meeting/audio-controls';
 import { AudioVisualizer } from '@/components/meeting/audio-visualizer';
 import { TranscriptDisplay, TranscriptEntry } from '@/components/meeting/transcript-display';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, User } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Loader2, User, Phone, Mic, ChevronDown } from 'lucide-react';
 
 interface VoiceOnlyModeProps {
   livekitUrl: string;
@@ -36,6 +45,8 @@ export function VoiceOnlyMode({
   const [connectionState, setConnectionState] = useState<ConnectionState>(
     ConnectionState.Connecting
   );
+  const [userStartedCall, setUserStartedCall] = useState(false);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
   const roomRef = useRef<Room | null>(null);
 
   const handleConnected = useCallback(() => {
@@ -44,6 +55,24 @@ export function VoiceOnlyMode({
 
   const handleDisconnected = useCallback(() => {
     setConnectionState(ConnectionState.Disconnected);
+  }, []);
+
+  // Request microphone permission explicitly
+  const handleStartCall = useCallback(async () => {
+    console.log('Start call clicked - requesting microphone permission...');
+    try {
+      // Request microphone access - this triggers browser permission prompt
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log('Microphone permission granted!', stream);
+      // Stop the stream immediately - LiveKit will request it again
+      stream.getTracks().forEach(track => track.stop());
+      // Permission granted, start the call
+      setUserStartedCall(true);
+      setPermissionError(null);
+    } catch (error) {
+      console.error('Microphone permission denied:', error);
+      setPermissionError('Microphone access is required for voice calls. Please allow microphone access and try again.');
+    }
   }, []);
 
   // Properly disconnect from room when component unmounts or call ends
@@ -57,16 +86,53 @@ export function VoiceOnlyMode({
     onEndCall();
   }, [onEndCall]);
 
+  // Show start button until user clicks (required for AudioContext)
+  if (!userStartedCall) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-background to-muted p-4">
+        <div className="text-center space-y-6">
+          <div className="w-24 h-24 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
+            <User className="w-12 h-12 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold mb-2">Ready to talk with {agentName}?</h2>
+            <p className="text-muted-foreground">
+              Click the button below to start your voice call
+            </p>
+            {permissionError && (
+              <p className="text-red-500 text-sm mt-2 max-w-md">{permissionError}</p>
+            )}
+          </div>
+          <Button
+            size="lg"
+            onClick={handleStartCall}
+            className="gap-2"
+          >
+            <Phone className="h-5 w-5" />
+            Start Call
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <LiveKitRoom
       serverUrl={livekitUrl}
       token={livekitToken}
       connect={true}
-      audio={true}
+      audio={{ echoCancellation: true, noiseSuppression: true, autoGainControl: true }}
       video={false}
       onConnected={handleConnected}
       onDisconnected={handleDisconnected}
-      options={{ disconnectOnPageLeave: true }}
+      options={{ 
+        disconnectOnPageLeave: true,
+        publishDefaults: {
+          audioPreset: {
+            maxBitrate: 64000,
+          }
+        }
+      }}
       className="min-h-screen"
     >
       <VoiceRoomContent
@@ -102,6 +168,8 @@ function VoiceRoomContent({
   const [audioLevel, setAudioLevel] = useState(0);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [agentStatus, setAgentStatus] = useState<'listening' | 'thinking' | 'speaking'>('listening');
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
 
   // Store room reference for cleanup
   useEffect(() => {
@@ -116,8 +184,51 @@ function VoiceRoomContent({
     };
   }, [room, roomRef]);
 
-  // Subscribe to remote audio tracks (AI agent voice)
-  const audioTracks = useTracks([Track.Source.Microphone]);
+  // Enumerate audio devices
+  useEffect(() => {
+    const getAudioDevices = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioInputs = devices.filter(device => device.kind === 'audioinput');
+        setAudioDevices(audioInputs);
+        
+        // Set default device
+        if (audioInputs.length > 0 && !selectedDeviceId) {
+          setSelectedDeviceId(audioInputs[0].deviceId);
+        }
+      } catch (error) {
+        console.error('Failed to enumerate devices:', error);
+      }
+    };
+
+    getAudioDevices();
+
+    // Listen for device changes (plug/unplug)
+    navigator.mediaDevices.addEventListener('devicechange', getAudioDevices);
+    return () => {
+      navigator.mediaDevices.removeEventListener('devicechange', getAudioDevices);
+    };
+  }, [selectedDeviceId]);
+
+  // Handle microphone device change
+  const handleDeviceChange = useCallback(async (deviceId: string) => {
+    if (!localParticipant) return;
+    
+    try {
+      // Switch to the new device
+      await localParticipant.setMicrophoneDevice(deviceId);
+      setSelectedDeviceId(deviceId);
+      console.log('Switched to microphone:', deviceId);
+    } catch (error) {
+      console.error('Failed to switch microphone:', error);
+    }
+  }, [localParticipant]);
+
+  // Subscribe to ALL audio tracks (including AI agent voice)
+  const audioTracks = useTracks([
+    Track.Source.Microphone,
+    Track.Source.Unknown,  // Agent audio comes as Unknown source
+  ]);
 
   // Handle mute toggle
   const handleMuteToggle = useCallback(() => {
@@ -206,17 +317,50 @@ function VoiceRoomContent({
         <Badge variant="outline" className="text-sm">
           {agentName}
         </Badge>
-        {connectionState === ConnectionState.Connecting && (
-          <Badge variant="secondary" className="animate-pulse">
-            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-            Connecting...
-          </Badge>
-        )}
-        {connectionState === ConnectionState.Connected && (
-          <Badge variant="default" className="bg-green-500">
-            Connected
-          </Badge>
-        )}
+        
+        <div className="flex items-center gap-2">
+          {/* Microphone Selector */}
+          {audioDevices.length > 1 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Mic className="h-4 w-4" />
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel>Select Microphone</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {audioDevices.map((device) => (
+                  <DropdownMenuItem
+                    key={device.deviceId}
+                    onClick={() => handleDeviceChange(device.deviceId)}
+                    className={selectedDeviceId === device.deviceId ? 'bg-accent' : ''}
+                  >
+                    <Mic className="h-4 w-4 mr-2" />
+                    {device.label || `Microphone ${device.deviceId.slice(0, 8)}`}
+                    {selectedDeviceId === device.deviceId && (
+                      <span className="ml-auto text-primary">✓</span>
+                    )}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          
+          {/* Connection Status */}
+          {connectionState === ConnectionState.Connecting && (
+            <Badge variant="secondary" className="animate-pulse">
+              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+              Connecting...
+            </Badge>
+          )}
+          {connectionState === ConnectionState.Connected && (
+            <Badge variant="default" className="bg-green-500">
+              Connected
+            </Badge>
+          )}
+        </div>
       </header>
 
       {/* Main Content */}
@@ -260,12 +404,14 @@ function VoiceRoomContent({
         </div>
 
         {/* Render remote audio tracks */}
-        {audioTracks.map((trackRef) => (
-          <AudioTrack
-            key={trackRef.participant.sid + trackRef.source}
-            trackRef={trackRef}
-          />
-        ))}
+        {audioTracks
+          .filter((trackRef) => trackRef.participant.sid !== localParticipant?.sid)
+          .map((trackRef) => (
+            <AudioTrack
+              key={trackRef.participant.sid + trackRef.source}
+              trackRef={trackRef}
+            />
+          ))}
       </main>
 
       {/* Controls Footer */}

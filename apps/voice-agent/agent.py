@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
+import webrtcvad
 from livekit import rtc
 from livekit.agents import AutoSubscribe, JobContext, WorkerOptions, cli
 
@@ -32,6 +33,7 @@ class AgentConfig:
     agent_name: str = "Assistant"
     agent_knowledge: str = ""
     room_name: str = ""
+    debug_mode: bool = False  # If True, skip LLM and just echo STT results
 
 
 class VoiceAgent:
@@ -57,8 +59,16 @@ class VoiceAgent:
         self.is_speaking = False
         
         self._pending_audio: bytes = b""
-        self._vad_silence_threshold = 0.5
+        self._vad_silence_threshold = 1.8  # Wait 1.8s of silence before sending to LLM
         self._last_speech_time: Optional[float] = None
+        self._speech_buffer: list[str] = []  # Buffer final results from Vosk
+        self._silence_task: Optional[asyncio.Task] = None
+        self._audio_buffer: bytes = b""  # Buffer for accumulating audio chunks
+        self._buffer_size = 8000  # ~0.5 seconds at 16kHz (8000 bytes = 4000 samples)
+        self._silence_count = 0  # Counter for silence logging
+        
+        # Voice Activity Detection to filter silence
+        self.vad = webrtcvad.Vad(2)  # Aggressiveness: 0-3, 2 is balanced
         
         self._initialize_services()
 
@@ -80,6 +90,16 @@ class VoiceAgent:
         self.tts = CoquiTTS(model_name=self.config.tts_model)
         
         logger.info("Voice agent services initialized")
+
+    async def _send_data_message(self, message: dict) -> None:
+        """Send a message via LiveKit data channel."""
+        if self.room and self.room.local_participant:
+            try:
+                import json
+                data = json.dumps(message).encode('utf-8')
+                await self.room.local_participant.publish_data(data, reliable=True)
+            except Exception as e:
+                logger.debug(f"Failed to send data message: {e}")
 
     async def start(self, room_name: str, participant_token: str) -> None:
         """Connect to LiveKit room and start processing."""
@@ -129,14 +149,47 @@ class VoiceAgent:
 
     async def _process_audio_track(self, track: rtc.Track) -> None:
         """Continuously process audio chunks through STT."""
-        audio_stream = rtc.AudioStream(track)
+        audio_stream = rtc.AudioStream(track, sample_rate=16000)  # Resample to 16kHz for Vosk
         
+        chunk_count = 0
         async for event in audio_stream:
             if not self.is_active:
                 break
             
+            chunk_count += 1
+            # Log every 100th chunk
+            if chunk_count % 100 == 0:
+                frame = event.frame
+                logger.debug(f"Audio chunk #{chunk_count}: {len(frame.data)} bytes, "
+                           f"rate={frame.sample_rate}, channels={frame.num_channels}, "
+                           f"buffer size: {len(self._audio_buffer)} bytes")
+            
+            # Accumulate audio in buffer
             audio_bytes = event.frame.data.tobytes()
-            await self._process_audio_chunk(audio_bytes)
+            self._audio_buffer += audio_bytes
+            
+            # Process when buffer reaches target size
+            if len(self._audio_buffer) >= self._buffer_size:
+                # Use VAD to check if buffer contains speech
+                # VAD requires exactly 320 bytes (20ms at 16kHz)
+                vad_chunk = self._audio_buffer[:320]
+                is_speech = False
+                try:
+                    is_speech = self.vad.is_speech(vad_chunk, 16000)
+                except Exception as e:
+                    logger.warning(f"VAD error: {e}")
+                    is_speech = True  # Process anyway if VAD fails
+                
+                if is_speech:
+                    await self._process_audio_chunk(self._audio_buffer)
+                    self._silence_count = 0  # Reset silence counter
+                else:
+                    self._silence_count += 1
+                    # Only log silence occasionally to reduce spam
+                    if self._silence_count % 50 == 0:
+                        logger.debug(f"Silence detected ({self._silence_count} consecutive buffers)")
+                
+                self._audio_buffer = b""  # Clear buffer
 
     async def _process_audio_chunk(self, audio_chunk: bytes) -> None:
         """Process single audio chunk through speech recognition."""
@@ -145,19 +198,69 @@ class VoiceAgent:
         
         result = self.stt.transcribe_stream(audio_chunk)
         
-        if result.get("final"):
-            text = result["final"].strip()
-            if text:
-                await self._on_speech_detected(text)
-        elif result.get("partial"):
+        # Check for both partial and final results
+        partial_text = result.get("partial", "").strip()
+        final_text = result.get("final", "").strip()
+        
+        # If we got a final result, use it (Vosk resets after final)
+        if final_text:
+            self._speech_buffer.append(final_text)
             self._last_speech_time = time.time()
+            logger.info(f"Speech fragment: {final_text}")
+            
+            # Send to frontend via data channel
+            await self._send_data_message({"type": "stt_final", "text": final_text})
+            
+            # Reset silence timer - wait for more speech
+            if self._silence_task:
+                self._silence_task.cancel()
+            self._silence_task = asyncio.create_task(self._wait_for_silence())
+        
+        # Also track partial results for live updates (but don't log to reduce spam)
+        elif partial_text:
+            self._last_speech_time = time.time()
+            # Only send to frontend, don't log every partial
+            
+            # Send partial to frontend
+            await self._send_data_message({"type": "stt_partial", "text": partial_text})
+            
+            # Reset silence timer
+            if self._silence_task:
+                self._silence_task.cancel()
+            self._silence_task = asyncio.create_task(self._wait_for_silence())
+    
+    async def _wait_for_silence(self) -> None:
+        """Wait for silence threshold before finalizing speech."""
+        try:
+            await asyncio.sleep(self._vad_silence_threshold)
+            # Silence threshold reached - finalize buffered speech
+            if self._speech_buffer:
+                full_text = " ".join(self._speech_buffer).strip()
+                self._speech_buffer.clear()
+                if full_text:
+                    await self._on_speech_detected(full_text)
+        except asyncio.CancelledError:
+            # New speech detected, timer cancelled
+            pass
 
     async def _on_speech_detected(self, text: str) -> None:
         """Triggered when user finishes speaking (VAD detected end)."""
         logger.info(f"User said: {text}")
         
+        # Send user speech to frontend
+        await self._send_data_message({"type": "user_speech", "text": text})
+        
         self.transcript.append(TranscriptEntry(speaker="User", text=text))
         self.conversation_history.append({"speaker": "User", "text": text})
+        
+        # Debug mode: skip LLM, just echo what was heard
+        if self.agent_config.debug_mode:
+            logger.info(f"[DEBUG MODE] Skipping LLM, heard: {text}")
+            await self._send_data_message({
+                "type": "agent_response", 
+                "text": f"[DEBUG] I heard: {text}"
+            })
+            return
         
         if self.is_speaking:
             await self._interrupt_speech()
@@ -236,9 +339,12 @@ class VoiceAgent:
                     samples_per_channel=len(chunk)
                 )
                 
-                await self.audio_source.capture_frame(frame)
-                # Small delay to prevent overwhelming the buffer
-                await asyncio.sleep(0.015)
+                try:
+                    await self.audio_source.capture_frame(frame)
+                    # Small delay to prevent overwhelming the buffer
+                    await asyncio.sleep(0.015)
+                except Exception as frame_error:
+                    logger.warning(f"Error capturing frame: {frame_error}")
                 
         except Exception as e:
             logger.error(f"Error sending audio: {e}")

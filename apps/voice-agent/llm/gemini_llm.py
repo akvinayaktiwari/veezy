@@ -80,7 +80,14 @@ class GeminiLLM:
                 return "I'm not sure how to respond to that."
                 
             except Exception as e:
+                error_str = str(e)
                 logger.error(f"Gemini API error (attempt {attempt + 1}): {e}")
+                
+                # Don't retry on quota/rate limit errors - they won't recover quickly
+                if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "quota" in error_str.lower():
+                    logger.warning("Quota exceeded - not retrying")
+                    break
+                
                 if attempt < 2:
                     await asyncio.sleep(2 ** attempt)
                 continue

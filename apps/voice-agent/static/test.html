@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Agent STT Test</title>
+    <script src="https://unpkg.com/livekit-client@2.0.0/dist/livekit-client.umd.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+            padding: 20px;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 10px; color: #00d9ff; }
+        .subtitle { text-align: center; color: #888; margin-bottom: 30px; }
+        
+        .status-bar {
+            display: flex; gap: 15px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap;
+        }
+        .status-item {
+            padding: 8px 16px; border-radius: 8px; background: rgba(255,255,255,0.1);
+            font-size: 14px;
+        }
+        .status-item.connected { background: rgba(0,255,100,0.2); border: 1px solid #0f0; }
+        .status-item.error { background: rgba(255,0,0,0.2); border: 1px solid #f00; }
+        
+        .controls {
+            display: flex; gap: 10px; justify-content: center; margin-bottom: 30px; flex-wrap: wrap;
+        }
+        button {
+            padding: 15px 30px; font-size: 16px; border: none; border-radius: 8px;
+            cursor: pointer; transition: all 0.2s;
+        }
+        button:hover { transform: scale(1.05); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-start { background: #00d9ff; color: #000; }
+        .btn-stop { background: #ff4757; color: #fff; }
+        .btn-clear { background: #555; color: #fff; }
+        
+        .panel {
+            background: rgba(255,255,255,0.05); border-radius: 12px;
+            padding: 20px; margin-bottom: 20px;
+        }
+        .panel h3 {
+            color: #00d9ff; margin-bottom: 15px;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .indicator {
+            width: 12px; height: 12px; border-radius: 50%; background: #555;
+        }
+        .indicator.active { background: #0f0; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        
+        .log-box {
+            background: #000; border-radius: 8px; padding: 15px;
+            min-height: 150px; max-height: 400px; overflow-y: auto;
+            font-family: monospace; font-size: 13px;
+        }
+        .log-entry { margin-bottom: 8px; padding: 8px; border-left: 3px solid; border-radius: 0 4px 4px 0; }
+        .log-entry.partial { border-color: #666; background: rgba(255,255,255,0.05); color: #888; }
+        .log-entry.final { border-color: #0f0; background: rgba(0,255,0,0.1); color: #0f0; }
+        .log-entry.agent { border-color: #00d9ff; background: rgba(0,217,255,0.1); color: #00d9ff; }
+        .log-entry.info { border-color: #888; color: #888; }
+        .log-entry.error { border-color: #f00; background: rgba(255,0,0,0.1); color: #f00; }
+        
+        .transcript-panel {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+        }
+        @media (max-width: 700px) { .transcript-panel { grid-template-columns: 1fr; } }
+        
+        .live-text {
+            font-size: 24px; text-align: center; padding: 30px;
+            background: rgba(0,0,0,0.3); border-radius: 8px; min-height: 100px;
+        }
+        .live-text .partial { color: #666; }
+        .live-text .final { color: #0f0; }
+        
+        .mode-toggle {
+            display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap;
+        }
+        .mode-toggle label {
+            display: flex; align-items: center; gap: 8px; cursor: pointer;
+            padding: 10px 20px; background: rgba(255,255,255,0.1); border-radius: 8px;
+        }
+        .mode-toggle input:checked + span { color: #00d9ff; }
+        
+        .mic-selector {
+            display: flex; gap: 10px; justify-content: center; margin-bottom: 20px;
+            align-items: center;
+        }
+        .mic-selector select {
+            padding: 10px 15px; font-size: 14px; border-radius: 8px;
+            background: rgba(255,255,255,0.1); color: #fff; border: 1px solid #444;
+            min-width: 250px; cursor: pointer;
+        }
+        .mic-selector select:focus { outline: none; border-color: #00d9ff; }
+        .mic-selector button {
+            padding: 10px 15px; font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 Voice Agent STT Test</h1>
+        <p class="subtitle">Test speech recognition using the real LiveKit pipeline</p>
+        
+        <div class="mic-selector">
+            <span>🎤 Microphone:</span>
+            <select id="micSelect">
+                <option value="">Loading devices...</option>
+            </select>
+            <button class="btn-clear" onclick="refreshMics()">🔄 Refresh</button>
+        </div>
+        
+        <div class="mode-toggle">
+            <label>
+                <input type="checkbox" id="debugMode" checked>
+                <span>Debug Mode (STT only, no LLM)</span>
+            </label>
+        </div>
+        
+        <div class="status-bar">
+            <div class="status-item" id="roomStatus">Room: Not connected</div>
+            <div class="status-item" id="micStatus">Mic: Off</div>
+            <div class="status-item" id="agentStatus">Agent: Not joined</div>
+        </div>
+        
+        <div class="controls">
+            <button class="btn-start" id="startBtn" onclick="startSession()">🎤 Start Test Session</button>
+            <button class="btn-stop" id="stopBtn" onclick="stopSession()" disabled>⏹ End Session</button>
+            <button class="btn-clear" onclick="clearLogs()">🗑 Clear Logs</button>
+        </div>
+        
+        <div class="panel">
+            <h3><span class="indicator" id="activeIndicator"></span> Live Transcription</h3>
+            <div class="live-text" id="liveText">
+                Click "Start Test Session" to begin...
+            </div>
+        </div>
+        
+        <div class="transcript-panel">
+            <div class="panel">
+                <h3>📝 STT Log (What Vosk Hears)</h3>
+                <div class="log-box" id="sttLog">Waiting...</div>
+            </div>
+            <div class="panel">
+                <h3>🤖 Agent Responses</h3>
+                <div class="log-box" id="agentLog">Waiting...</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_URL = 'http://localhost:8000';
+        let room = null;
+        let sessionId = null;
+        let selectedDeviceId = null;
+        
+        // Load available microphones on page load
+        async function loadMicrophones() {
+            try {
+                // Request permission first to get device labels
+                await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const audioInputs = devices.filter(d => d.kind === 'audioinput');
+                
+                const select = document.getElementById('micSelect');
+                select.innerHTML = '';
+                
+                if (audioInputs.length === 0) {
+                    select.innerHTML = '<option value="">No microphones found</option>';
+                    return;
+                }
+                
+                audioInputs.forEach((device, index) => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.textContent = device.label || `Microphone ${index + 1}`;
+                    select.appendChild(option);
+                });
+                
+                // Select first device by default
+                selectedDeviceId = audioInputs[0].deviceId;
+                log('stt', `Found ${audioInputs.length} microphone(s)`, 'info');
+                
+            } catch (err) {
+                console.error('Error loading microphones:', err);
+                document.getElementById('micSelect').innerHTML = 
+                    '<option value="">Error loading devices</option>';
+            }
+        }
+        
+        function refreshMics() {
+            loadMicrophones();
+        }
+        
+        document.getElementById('micSelect').addEventListener('change', (e) => {
+            selectedDeviceId = e.target.value;
+            const selectedText = e.target.options[e.target.selectedIndex].text;
+            log('stt', `Selected mic: ${selectedText}`, 'info');
+        });
+        
+        // Load mics on page load
+        window.addEventListener('load', loadMicrophones);
+        
+        async function startSession() {
+            const debugMode = document.getElementById('debugMode').checked;
+            selectedDeviceId = document.getElementById('micSelect').value;
+            
+            try {
+                log('stt', 'Starting session...', 'info');
+                
+                // Start session via API
+                const response = await fetch(`${API_URL}/sessions/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        agent_name: 'Test Agent',
+                        agent_knowledge: debugMode ? '__DEBUG_MODE__' : 'General assistant for testing',
+                        room_name: `test_${Date.now()}`
+                    })
+                });
+                
+                if (!response.ok) throw new Error('Failed to start session');
+                
+                const data = await response.json();
+                sessionId = data.session_id;
+                
+                log('stt', `Session started: ${sessionId}`, 'info');
+                log('stt', `Room: ${data.room_name}`, 'info');
+                
+                // Connect to LiveKit
+                room = new LivekitClient.Room();
+                
+                room.on(LivekitClient.RoomEvent.Connected, () => {
+                    document.getElementById('roomStatus').textContent = 'Room: Connected';
+                    document.getElementById('roomStatus').classList.add('connected');
+                    log('stt', 'Connected to LiveKit room', 'info');
+                });
+                
+                room.on(LivekitClient.RoomEvent.Disconnected, () => {
+                    document.getElementById('roomStatus').textContent = 'Room: Disconnected';
+                    document.getElementById('roomStatus').classList.remove('connected');
+                });
+                
+                room.on(LivekitClient.RoomEvent.ParticipantConnected, (participant) => {
+                    if (participant.identity.startsWith('agent-')) {
+                        document.getElementById('agentStatus').textContent = 'Agent: Connected';
+                        document.getElementById('agentStatus').classList.add('connected');
+                        document.getElementById('activeIndicator').classList.add('active');
+                        log('agent', 'Voice agent joined the room', 'info');
+                    }
+                });
+                
+                room.on(LivekitClient.RoomEvent.ParticipantDisconnected, (participant) => {
+                    if (participant.identity.startsWith('agent-')) {
+                        document.getElementById('agentStatus').textContent = 'Agent: Disconnected';
+                        document.getElementById('agentStatus').classList.remove('connected');
+                    }
+                });
+                
+                // Listen for data messages (transcript from agent)
+                room.on(LivekitClient.RoomEvent.DataReceived, (payload, participant) => {
+                    try {
+                        const message = JSON.parse(new TextDecoder().decode(payload));
+                        
+                        if (message.type === 'stt_partial') {
+                            document.getElementById('liveText').innerHTML = 
+                                `<span class="partial">${message.text}</span>`;
+                            log('stt', `[PARTIAL] ${message.text}`, 'partial');
+                        }
+                        else if (message.type === 'stt_final') {
+                            document.getElementById('liveText').innerHTML = 
+                                `<span class="final">${message.text}</span>`;
+                            log('stt', `[FINAL] ${message.text}`, 'final');
+                        }
+                        else if (message.type === 'agent_response') {
+                            log('agent', message.text, 'agent');
+                        }
+                        else if (message.type === 'user_speech') {
+                            log('stt', `Sent to LLM: "${message.text}"`, 'final');
+                        }
+                    } catch (e) {}
+                });
+                
+                // Listen for agent audio (if not debug mode)
+                room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+                    if (track.kind === 'audio' && participant.identity.startsWith('agent-')) {
+                        const audioElement = track.attach();
+                        audioElement.volume = 1.0;
+                        document.body.appendChild(audioElement);
+                        log('agent', 'Agent audio track attached', 'info');
+                    }
+                });
+                
+                // Connect with participant token
+                await room.connect(data.livekit_url || 'wss://veezy-lgd0zty8.livekit.cloud', data.participant_token);
+                
+                // Enable microphone with selected device
+                const micOptions = selectedDeviceId ? { deviceId: selectedDeviceId } : true;
+                await room.localParticipant.setMicrophoneEnabled(true, micOptions);
+                
+                const selectedMicName = document.getElementById('micSelect').options[
+                    document.getElementById('micSelect').selectedIndex
+                ]?.text || 'Default';
+                document.getElementById('micStatus').textContent = `Mic: ${selectedMicName}`;
+                document.getElementById('micStatus').classList.add('connected');
+                log('stt', `Using microphone: ${selectedMicName}`, 'info');
+                
+                // Update UI
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+                
+            } catch (err) {
+                console.error(err);
+                log('stt', `Error: ${err.message}`, 'error');
+            }
+        }
+        
+        async function stopSession() {
+            try {
+                if (room) {
+                    await room.disconnect();
+                    room = null;
+                }
+                
+                if (sessionId) {
+                    await fetch(`${API_URL}/sessions/${sessionId}/end`, { method: 'POST' });
+                    log('stt', `Session ended: ${sessionId}`, 'info');
+                    sessionId = null;
+                }
+                
+                // Reset UI
+                document.getElementById('roomStatus').textContent = 'Room: Not connected';
+                document.getElementById('roomStatus').classList.remove('connected');
+                document.getElementById('micStatus').textContent = 'Mic: Off';
+                document.getElementById('micStatus').classList.remove('connected');
+                document.getElementById('agentStatus').textContent = 'Agent: Not joined';
+                document.getElementById('agentStatus').classList.remove('connected');
+                document.getElementById('activeIndicator').classList.remove('active');
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+                document.getElementById('liveText').textContent = 'Session ended';
+                
+            } catch (err) {
+                console.error(err);
+                log('stt', `Error stopping: ${err.message}`, 'error');
+            }
+        }
+        
+        function log(target, message, type) {
+            const logBox = document.getElementById(target === 'agent' ? 'agentLog' : 'sttLog');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            const time = new Date().toLocaleTimeString();
+            entry.textContent = `[${time}] ${message}`;
+            logBox.appendChild(entry);
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+        
+        function clearLogs() {
+            document.getElementById('sttLog').innerHTML = '';
+            document.getElementById('agentLog').innerHTML = '';
+            document.getElementById('liveText').textContent = 'Cleared';
+        }
+    </script>
+</body>
+</html>
