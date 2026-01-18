@@ -14,7 +14,7 @@ from livekit.agents import AutoSubscribe, JobContext, WorkerOptions, cli
 from config import Config, load_config
 from stt import VoskSTT
 from llm import GeminiLLM
-from tts import CoquiTTS
+from tts import PiperTTS
 
 logger = logging.getLogger(__name__)
 
@@ -39,15 +39,24 @@ class AgentConfig:
 class VoiceAgent:
     """Core voice agent connecting STT, LLM, and TTS in LiveKit pipeline."""
 
-    def __init__(self, config: Config, agent_config: AgentConfig):
-        """Initialize voice agent with configuration and services."""
+    def __init__(
+        self, 
+        config: Config, 
+        agent_config: AgentConfig,
+        stt_service: Optional[VoskSTT] = None,
+        llm_service: Optional[GeminiLLM] = None,
+        tts_service: Optional[PiperTTS] = None
+    ):
+        """Initialize voice agent with configuration and pre-loaded services."""
         self.config = config
         self.agent_config = agent_config
         self.session_id = str(uuid.uuid4())
         
-        self.stt: Optional[VoskSTT] = None
-        self.llm_service: Optional[GeminiLLM] = None
-        self.tts: Optional[CoquiTTS] = None
+        # Use pre-loaded services if provided (instant startup)
+        # Otherwise fall back to loading per-session (slower)
+        self.stt: Optional[VoskSTT] = stt_service
+        self.llm_service: Optional[GeminiLLM] = llm_service
+        self.tts: Optional[PiperTTS] = tts_service
         
         self.transcript: list[TranscriptEntry] = []
         self.conversation_history: list[dict] = []
@@ -70,24 +79,33 @@ class VoiceAgent:
         # Voice Activity Detection to filter silence
         self.vad = webrtcvad.Vad(2)  # Aggressiveness: 0-3, 2 is balanced
         
-        self._initialize_services()
+        # Only initialize services if not already provided (backward compatibility)
+        if self.stt is None or self.llm_service is None or self.tts is None:
+            self._initialize_services()
+        else:
+            logger.info("Using pre-loaded services (instant startup)")
 
     def _initialize_services(self) -> None:
-        """Load and initialize STT, LLM, and TTS services."""
-        logger.info("Initializing voice agent services")
+        """Load and initialize STT, LLM, and TTS services (fallback for per-session loading)."""
+        logger.info("Initializing voice agent services (per-session loading)")
         
-        self.stt = VoskSTT(self.config.vosk_model_path)
+        if self.stt is None:
+            self.stt = VoskSTT(self.config.vosk_model_path)
         
-        self.llm_service = GeminiLLM(
-            api_key=self.config.gemini_api_key,
-            model=self.config.gemini_model
-        )
+        if self.llm_service is None:
+            self.llm_service = GeminiLLM(
+                api_key=self.config.gemini_api_key,
+                model=self.config.gemini_model
+            )
+        
+        # Always set system context for this session (even if LLM is pre-loaded)
         self.llm_service.set_system_context(
             agent_name=self.agent_config.agent_name,
             agent_knowledge=self.agent_config.agent_knowledge
         )
         
-        self.tts = CoquiTTS(model_name=self.config.tts_model)
+        if self.tts is None:
+            self.tts = PiperTTS(model_path=self.config.piper_model_path)
         
         logger.info("Voice agent services initialized")
 
@@ -121,7 +139,7 @@ class VoiceAgent:
                 )
             )
             
-            self.audio_source = rtc.AudioSource(16000, 1)
+            self.audio_source = rtc.AudioSource(22050, 1)
             track = rtc.LocalAudioTrack.create_audio_track("agent-audio", self.audio_source)
             
             await self.room.local_participant.publish_track(track)

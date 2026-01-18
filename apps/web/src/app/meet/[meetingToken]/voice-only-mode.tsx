@@ -212,17 +212,17 @@ function VoiceRoomContent({
 
   // Handle microphone device change
   const handleDeviceChange = useCallback(async (deviceId: string) => {
-    if (!localParticipant) return;
+    if (!room || !localParticipant) return;
     
     try {
-      // Switch to the new device
-      await localParticipant.setMicrophoneDevice(deviceId);
+      // Switch to the new device using LiveKit's switchActiveDevice
+      await room.switchActiveDevice('audioinput', deviceId);
       setSelectedDeviceId(deviceId);
       console.log('Switched to microphone:', deviceId);
     } catch (error) {
       console.error('Failed to switch microphone:', error);
     }
-  }, [localParticipant]);
+  }, [room, localParticipant]);
 
   // Subscribe to ALL audio tracks (including AI agent voice)
   const audioTracks = useTracks([

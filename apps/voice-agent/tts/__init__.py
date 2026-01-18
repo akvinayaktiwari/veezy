@@ -1,3 +1,3 @@
-from .coqui_tts import CoquiTTS
+from .piper_tts import PiperTTS
 
-__all__ = ["CoquiTTS"]
+__all__ = ["PiperTTS"]

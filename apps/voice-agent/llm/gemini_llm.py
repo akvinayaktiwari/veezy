@@ -6,11 +6,13 @@ from typing import AsyncGenerator, Optional
 from google import genai
 from google.genai import types
 
-logger = logging.getLogger(__name__)
+from prompts import (
+    VOICE_AGENT_SYSTEM_PROMPT,
+    FALLBACK_RESPONSE,
+    ERROR_RESPONSE
+)
 
-DEFAULT_SYSTEM_PROMPT = """You are {agent_name}, a helpful voice assistant. {agent_knowledge}. 
-Keep responses concise (1-2 sentences) since this is a voice conversation. 
-Be natural and conversational. Avoid using markdown, bullet points, or numbered lists."""
+logger = logging.getLogger(__name__)
 
 
 class GeminiLLM:
@@ -22,7 +24,7 @@ class GeminiLLM:
         self.model_name = model
         self.generation_config = types.GenerateContentConfig(
             temperature=0.7,
-            max_output_tokens=150,
+            max_output_tokens=50,  # Reduced to force shorter responses (10-20 words)
             top_p=0.9,
             top_k=40
         )
@@ -32,7 +34,7 @@ class GeminiLLM:
 
     def set_system_context(self, agent_name: str = "Assistant", agent_knowledge: str = "") -> None:
         """Set agent knowledge/personality as system prompt."""
-        self.system_context = DEFAULT_SYSTEM_PROMPT.format(
+        self.system_context = VOICE_AGENT_SYSTEM_PROMPT.format(
             agent_name=agent_name,
             agent_knowledge=agent_knowledge or "You can help with general questions"
         )
@@ -74,10 +76,21 @@ class GeminiLLM:
                 )
                 
                 if response.text:
-                    return response.text.strip()
+                    text = response.text.strip()
+                    
+                    # Force truncate if response is too long (safety check)
+                    # Split by sentence and take only first 1-2 sentences
+                    sentences = text.replace('!', '.').replace('?', '.').split('.')
+                    sentences = [s.strip() for s in sentences if s.strip()]
+                    
+                    if len(sentences) > 2:
+                        text = '. '.join(sentences[:2]) + '.'
+                        logger.warning(f"Truncated long response from {len(sentences)} to 2 sentences")
+                    
+                    return text
                 
                 logger.warning("Empty response from Gemini")
-                return "I'm not sure how to respond to that."
+                return FALLBACK_RESPONSE
                 
             except Exception as e:
                 error_str = str(e)
@@ -92,7 +105,7 @@ class GeminiLLM:
                     await asyncio.sleep(2 ** attempt)
                 continue
         
-        return "I'm having trouble processing that right now. Could you try again?"
+        return ERROR_RESPONSE
 
     async def stream_response(
         self, 

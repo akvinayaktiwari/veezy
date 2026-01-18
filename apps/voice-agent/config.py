@@ -35,10 +35,10 @@ class Config(BaseSettings):
         alias="VOSK_MODEL_PATH",
         description="Path to Vosk model directory"
     )
-    tts_model: str = Field(
-        default="tts_models/en/ljspeech/tacotron2-DDC",
-        alias="TTS_MODEL",
-        description="Coqui TTS model name"
+    piper_model_path: str = Field(
+        default="models/piper/en_US-lessac-medium.onnx",
+        alias="PIPER_MODEL_PATH",
+        description="Path to Piper TTS model (.onnx file)"
     )
     port: int = Field(
         default=8000,

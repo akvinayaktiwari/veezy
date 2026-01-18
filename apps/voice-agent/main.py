@@ -19,7 +19,7 @@ from config import Config, load_config, validate_config
 from agent import VoiceAgent, AgentConfig
 from stt import VoskSTT
 from llm import GeminiLLM
-from tts import CoquiTTS
+from tts import PiperTTS
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,6 +31,11 @@ logger = logging.getLogger(__name__)
 config: Optional[Config] = None
 active_sessions: dict[str, VoiceAgent] = {}
 services_status = {"stt": False, "llm": False, "tts": False}
+
+# Global service instances (loaded once at startup)
+stt_service: Optional[VoskSTT] = None
+llm_service: Optional[GeminiLLM] = None
+tts_service: Optional[PiperTTS] = None
 
 
 class StartSessionRequest(BaseModel):
@@ -110,26 +115,12 @@ def generate_livekit_token(
 
 def check_services() -> dict[str, bool]:
     """Verify all services are operational."""
-    global services_status
+    global services_status, stt_service, llm_service, tts_service
     
-    if config is None:
-        return {"stt": False, "llm": False, "tts": False}
-    
-    try:
-        stt_check = os.path.exists(config.vosk_model_path)
-        services_status["stt"] = stt_check
-    except Exception:
-        services_status["stt"] = False
-    
-    try:
-        services_status["llm"] = bool(config.gemini_api_key)
-    except Exception:
-        services_status["llm"] = False
-    
-    try:
-        services_status["tts"] = True
-    except Exception:
-        services_status["tts"] = False
+    # Check if services are actually loaded
+    services_status["stt"] = stt_service is not None
+    services_status["llm"] = llm_service is not None
+    services_status["tts"] = tts_service is not None
     
     return services_status
 
@@ -137,7 +128,7 @@ def check_services() -> dict[str, bool]:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application startup and shutdown lifecycle."""
-    global config
+    global config, stt_service, llm_service, tts_service, services_status
     
     logger.info("Starting Voice Agent Service")
     
@@ -147,6 +138,31 @@ async def lifespan(app: FastAPI):
         logger.info("Configuration loaded successfully")
     except Exception as e:
         logger.error(f"Configuration error: {e}")
+        sys.exit(1)
+    
+    # Load models once at startup (takes ~51 seconds, but only happens once)
+    logger.info("Loading AI models (this may take up to 60 seconds)...")
+    try:
+        logger.info("Loading Vosk STT model...")
+        stt_service = VoskSTT(config.vosk_model_path)
+        services_status["stt"] = True
+        logger.info("✓ Vosk STT loaded")
+        
+        logger.info("Initializing Gemini LLM...")
+        llm_service = GeminiLLM(config.gemini_api_key, config.gemini_model)
+        services_status["llm"] = True
+        logger.info("✓ Gemini LLM initialized")
+        
+        logger.info("Loading Piper TTS model...")
+        tts_service = PiperTTS(model_path=config.piper_model_path)
+        services_status["tts"] = True
+        logger.info("✓ Piper TTS loaded")
+        
+        logger.info("🚀 All models loaded! Voice agent ready for instant session starts.")
+    except Exception as e:
+        logger.error(f"Failed to load AI models: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         sys.exit(1)
     
     log_level = getattr(logging, config.log_level, logging.INFO)
@@ -221,7 +237,14 @@ async def start_session(request: StartSessionRequest) -> StartSessionResponse:
         if agent_config.debug_mode:
             logger.info(f"Starting session in DEBUG MODE (no LLM calls)")
         
-        voice_agent = VoiceAgent(config, agent_config)
+        # Pass pre-loaded services for instant startup
+        voice_agent = VoiceAgent(
+            config, 
+            agent_config,
+            stt_service=stt_service,
+            llm_service=llm_service,
+            tts_service=tts_service
+        )
         
         asyncio.create_task(voice_agent.start(room_name, agent_token))
         
