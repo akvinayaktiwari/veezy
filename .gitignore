@@ -45,3 +45,7 @@ apps/api/generated/
 *.swo
 *~
 node_modules
+
+# Voice Agent - Large model files
+apps/voice-agent/models/piper/*.onnx
+apps/voice-agent/models/vosk-model-*/
