@@ -17,6 +17,10 @@ logger = logging.getLogger(__name__)
 
 VOSK_MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-small-en-in-0.4.zip"
 VOSK_MODEL_NAME = "vosk-model-small-en-in-0.4"
+PIPER_MODEL_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx"
+PIPER_CONFIG_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json"
+PIPER_MODEL_NAME = "en_US-lessac-medium.onnx"
+PIPER_CONFIG_NAME = "en_US-lessac-medium.onnx.json"
 MODELS_DIR = Path(__file__).parent / "models"
 
 
@@ -105,6 +109,47 @@ def setup_coqui_tts() -> bool:
     return True
 
 
+def setup_piper_tts() -> bool:
+    """Download and setup Piper TTS model."""
+    piper_dir = MODELS_DIR / "piper"
+    model_path = piper_dir / PIPER_MODEL_NAME
+    config_path = piper_dir / PIPER_CONFIG_NAME
+    
+    if model_path.exists() and config_path.exists():
+        logger.info(f"✓ Piper TTS model already exists at {model_path}")
+        return True
+    
+    logger.info("Setting up Piper TTS model...")
+    logger.info(f"Model: {PIPER_MODEL_NAME}")
+    logger.info(f"Size: ~60MB")
+    logger.info(f"Voice: en_US-lessac-medium (high quality)")
+    
+    piper_dir.mkdir(parents=True, exist_ok=True)
+    
+    try:
+        # Download model file
+        logger.info(f"Downloading model from Hugging Face...")
+        download_file(PIPER_MODEL_URL, model_path, "Piper Model")
+        
+        # Download config file
+        logger.info(f"Downloading config...")
+        download_file(PIPER_CONFIG_URL, config_path, "Piper Config")
+        
+        if model_path.exists() and config_path.exists():
+            logger.info(f"✓ Piper TTS model ready at {model_path}")
+            return True
+        else:
+            logger.error("Model download incomplete")
+            return False
+            
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Download failed: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Setup failed: {e}")
+        return False
+
+
 def verify_dependencies() -> bool:
     """Check that required Python packages are installed."""
     logger.info("Verifying dependencies...")
@@ -186,11 +231,17 @@ def main() -> int:
         all_success = False
     
     print()
-    logger.info("Step 3: Coqui TTS setup info")
+    logger.info("Step 3: Setting up Piper TTS model")
+    if not setup_piper_tts():
+        logger.error("Piper TTS model setup failed")
+        all_success = False
+    
+    print()
+    logger.info("Step 4: Coqui TTS setup info (alternative)")
     setup_coqui_tts()
     
     print()
-    logger.info("Step 4: Checking environment configuration")
+    logger.info("Step 5: Checking environment configuration")
     check_env_file()
     
     print()

@@ -63,7 +63,30 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Configure Environment
+### 3. Download AI Models
+
+**Option 1: Automatic setup (recommended)**
+
+```bash
+python setup.py
+```
+
+This downloads:
+- Vosk STT model (~50MB) - Indian English optimized
+- Piper TTS model (~60MB) - High-quality voice synthesis
+- Coqui TTS (alternative, downloads on first use)
+
+**Option 2: Manual download**
+
+If you prefer to download models manually:
+- Vosk: [alphacephei.com/vosk/models](https://alphacephei.com/vosk/models)
+- Piper: [rhasspy/piper releases](https://github.com/rhasspy/piper/releases)
+
+Place models in:
+- `models/vosk-model-en-us-0.22/` (or any Vosk model)
+- `models/piper/en_US-lessac-medium.onnx` (and corresponding .json)
+
+### 4. Configure Environment
 
 ```bash
 # Copy example environment file
@@ -77,7 +100,7 @@ Required API keys:
 - **LiveKit**: Get from [livekit.io/cloud](https://livekit.io/cloud)
 - **Gemini**: Get from [makersuite.google.com](https://makersuite.google.com/app/apikey)
 
-### 4. Download Models
+### 5. Verify Setup
 
 ```bash
 python setup.py
