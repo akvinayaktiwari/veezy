@@ -354,7 +354,7 @@ async def get_rejoin_token(session_id: str) -> RejoinTokenResponse:
     )
 
 
-@app.get("/health", response_model=HealthResponse)
+@app.api_route("/health", response_model=HealthResponse, methods=["GET", "HEAD"])
 async def health_check() -> HealthResponse:
     """Check health of all services."""
     current_status = check_services()

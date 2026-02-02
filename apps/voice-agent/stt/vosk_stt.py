@@ -12,9 +12,9 @@ from vosk import Model, KaldiRecognizer
 
 logger = logging.getLogger(__name__)
 
-# Use the larger, more accurate US English model
-VOSK_MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-en-us-0.22.zip"
-VOSK_MODEL_NAME = "vosk-model-en-us-0.22"
+# Use the smaller model for Docker (lightweight, faster builds)
+VOSK_MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.4.zip"
+VOSK_MODEL_NAME = "vosk-model-small-en-us-0.4"
 
 
 class VoskSTT:

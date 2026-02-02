@@ -1,0 +1,142 @@
+# ============================================
+# PRODUCTION DOCKER COMPOSE - Veezy Full Stack
+# Platform: linux/amd64 (AWS ECS/Fargate compatible)
+# Usage: docker compose -f docker-compose.prod.yml up -d
+# ============================================
+
+version: '3.8'
+
+services:
+
+  # ==================== Next.js Frontend ====================
+  nextjs-web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_LIVEKIT_URL: ${NEXT_PUBLIC_LIVEKIT_URL}
+    
+    platform: linux/amd64
+    container_name: veezy-web
+    restart: unless-stopped
+    
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NEXT_PUBLIC_LIVEKIT_URL: ${NEXT_PUBLIC_LIVEKIT_URL}
+      API_URL: http://nestjs-api:4000
+      DATABASE_URL: ${DATABASE_URL}
+    
+    ports:
+      - "3000:3000"
+    
+    depends_on:
+      nestjs-api:
+        condition: service_healthy
+    
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    
+    networks:
+      - veezy-network
+
+  # ==================== NestJS API Backend ====================
+  nestjs-api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    
+    platform: linux/amd64
+    container_name: veezy-api
+    restart: unless-stopped
+    
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      # Database connection (primary connection for Prisma)
+      DATABASE_URL: ${DATABASE_URL}
+      # Supabase configuration
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      # JWT configuration
+      JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_here}
+      # CORS allowed origins
+      FRONTEND_URL: ${FRONTEND_URL:-http://nextjs-web:3000}
+      # LiveKit configuration (for voice agent coordination)
+      LIVEKIT_URL: ${LIVEKIT_URL}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+    
+    ports:
+      - "4000:4000"
+    
+    # No local DB dependency; uses external Supabase
+    
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:4000/health || exit 1"]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 120s
+    
+    networks:
+      - veezy-network
+
+  # ==================== Python Voice Agent ====================
+  voice-agent:
+    build:
+      context: .
+      dockerfile: apps/voice-agent/Dockerfile
+    
+    platform: linux/amd64
+    container_name: veezy-voice-agent
+    restart: unless-stopped
+    
+    environment:
+      # Python environment
+      PYTHONUNBUFFERED: 1
+      PORT: 8000
+      # LiveKit configuration (real-time voice communication)
+      LIVEKIT_URL: ${LIVEKIT_URL}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      # Gemini AI configuration (LLM for agent responses)
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      # Backend API URL (for fetching agent knowledge/context)
+      API_URL: ${API_URL:-http://nestjs-api:4000}
+    
+    ports:
+      - "8000:8000"
+    
+    depends_on:
+      nestjs-api:
+        condition: service_healthy
+    
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    networks:
+      - veezy-network
+
+# ==================== Networks ====================
+networks:
+  veezy-network:
+    driver: bridge
+
+
+# ==================== Volumes ====================
+# (No local DB volume needed)

@@ -42,18 +42,30 @@ class GeminiLLM:
 
     def _build_prompt(self, user_message: str, conversation_history: list) -> str:
         """Construct full prompt with system context and history."""
-        prompt_parts = [self.system_context, "\nConversation:"]
+        # Build conversation as a natural dialogue without meta-labels
+        conversation_parts = []
         
         recent_history = conversation_history[-self.max_history_length:]
         for entry in recent_history:
             speaker = entry.get("speaker", "User")
             text = entry.get("text", "")
-            prompt_parts.append(f"{speaker}: {text}")
+            if speaker == "User" or speaker == "Lead":
+                conversation_parts.append(f"Caller: {text}")
+            else:
+                conversation_parts.append(f"You: {text}")
         
-        prompt_parts.append(f"User: {user_message}")
-        prompt_parts.append("Assistant:")
+        # Add current user message
+        conversation_parts.append(f"Caller: {user_message}")
         
-        return "\n".join(prompt_parts)
+        # Build final prompt with system context first
+        full_prompt = f"{self.system_context}\n\n"
+        
+        if conversation_parts:
+            full_prompt += "CONVERSATION SO FAR:\n" + "\n".join(conversation_parts) + "\n\n"
+        
+        full_prompt += "YOUR RESPONSE (speak directly as the agent, do NOT narrate):"
+        
+        return full_prompt
 
     async def generate_response(
         self, 

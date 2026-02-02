@@ -1,0 +1,224 @@
+# ============================================
+# GitHub Actions - AWS ECS Fargate Deployment
+# Trigger: Push to main branch
+# Target: us-east-1, ECS Fargate (m7i.flex.large)
+# Duration: ~2 minutes from git push to live
+# ============================================
+
+name: Deploy to AWS ECS Fargate
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: us-east-1
+  ECS_CLUSTER: veezy-cluster
+  ECS_SERVICE: veezy-stack
+
+  # ECR Repository Names
+  ECR_REPO_NEXTJS: veezy-nextjs
+  ECR_REPO_NESTJS: veezy-nestjs
+  ECR_REPO_VOICE: veezy-voice-agent
+
+  # Task Definition
+  ECS_TASK_DEFINITION: aws-task-definition.json
+  CONTAINER_NAME_NEXTJS: nextjs-web
+  CONTAINER_NAME_NESTJS: nestjs-api
+  CONTAINER_NAME_VOICE: voice-agent
+
+jobs:
+  deploy:
+    name: Build and Deploy to AWS ECS
+    runs-on: ubuntu-latest
+
+    steps:
+      # ==================== Checkout Code ====================
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ==================== Configure AWS Credentials ====================
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # ==================== Login to Amazon ECR ====================
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # ==================== Build and Push Next.js Image ====================
+      - name: Build, tag, and push Next.js image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          echo "Building Next.js image..."
+          docker build \
+            --platform linux/amd64 \
+            -f apps/web/Dockerfile \
+            -t $ECR_REGISTRY/$ECR_REPO_NEXTJS:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPO_NEXTJS:latest \
+            --build-arg NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }} \
+            --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }} \
+            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
+            --build-arg NEXT_PUBLIC_LIVEKIT_URL=${{ secrets.NEXT_PUBLIC_LIVEKIT_URL }} \
+            .
+
+          echo "Pushing Next.js image to ECR..."
+          docker push $ECR_REGISTRY/$ECR_REPO_NEXTJS:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPO_NEXTJS:latest
+
+          echo "nextjs_image=$ECR_REGISTRY/$ECR_REPO_NEXTJS:$IMAGE_TAG" >> $GITHUB_OUTPUT
+        id: build-nextjs
+
+      # ==================== Build and Push NestJS Image ====================
+      - name: Build, tag, and push NestJS image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          echo "Building NestJS image..."
+          docker build \
+            --platform linux/amd64 \
+            -f apps/api/Dockerfile \
+            -t $ECR_REGISTRY/$ECR_REPO_NESTJS:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPO_NESTJS:latest \
+            .
+
+          echo "Pushing NestJS image to ECR..."
+          docker push $ECR_REGISTRY/$ECR_REPO_NESTJS:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPO_NESTJS:latest
+
+          echo "nestjs_image=$ECR_REGISTRY/$ECR_REPO_NESTJS:$IMAGE_TAG" >> $GITHUB_OUTPUT
+        id: build-nestjs
+
+      # ==================== Build and Push Voice Agent Image ====================
+      - name: Build, tag, and push Voice Agent image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          echo "Building Voice Agent image..."
+          docker build \
+            --platform linux/amd64 \
+            -f apps/voice-agent/Dockerfile \
+            -t $ECR_REGISTRY/$ECR_REPO_VOICE:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPO_VOICE:latest \
+            .
+
+          echo "Pushing Voice Agent image to ECR..."
+          docker push $ECR_REGISTRY/$ECR_REPO_VOICE:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPO_VOICE:latest
+
+          echo "voice_image=$ECR_REGISTRY/$ECR_REPO_VOICE:$IMAGE_TAG" >> $GITHUB_OUTPUT
+        id: build-voice
+
+      # ==================== Update Task Definition - Next.js ====================
+      - name: Fill in Next.js container image in task definition
+        id: task-def-nextjs
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ env.ECS_TASK_DEFINITION }}
+          container-name: ${{ env.CONTAINER_NAME_NEXTJS }}
+          image: ${{ steps.build-nextjs.outputs.nextjs_image }}
+
+      # ==================== Update Task Definition - NestJS ====================
+      - name: Fill in NestJS container image in task definition
+        id: task-def-nestjs
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def-nextjs.outputs.task-definition }}
+          container-name: ${{ env.CONTAINER_NAME_NESTJS }}
+          image: ${{ steps.build-nestjs.outputs.nestjs_image }}
+
+      # ==================== Update Task Definition - Voice Agent ====================
+      - name: Fill in Voice Agent container image in task definition
+        id: task-def-voice
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def-nestjs.outputs.task-definition }}
+          container-name: ${{ env.CONTAINER_NAME_VOICE }}
+          image: ${{ steps.build-voice.outputs.voice_image }}
+
+      # ==================== Deploy to Amazon ECS ====================
+      - name: Deploy to Amazon ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-def-voice.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+          wait-for-minutes: 10
+
+      # ==================== Deployment Success Notification ====================
+      - name: Deployment success
+        run: |
+          echo "🚀 Deployment completed successfully!"
+          echo "Next.js: ${{ steps.build-nextjs.outputs.nextjs_image }}"
+          echo "NestJS: ${{ steps.build-nestjs.outputs.nestjs_image }}"
+          echo "Voice Agent: ${{ steps.build-voice.outputs.voice_image }}"
+          echo "ECS Service: ${{ env.ECS_SERVICE }}"
+          echo "ECS Cluster: ${{ env.ECS_CLUSTER }}"
+
+# ============================================
+# SETUP INSTRUCTIONS
+# ============================================
+#
+# Before first deployment, complete these steps:
+#
+# 1. CREATE AWS ECR REPOSITORIES:
+#    aws ecr create-repository --repository-name veezy-nextjs --region us-east-1
+#    aws ecr create-repository --repository-name veezy-nestjs --region us-east-1
+#    aws ecr create-repository --repository-name veezy-voice-agent --region us-east-1
+#
+# 2. CREATE ECS CLUSTER (Fargate):
+#    aws ecs create-cluster --cluster-name veezy-cluster --region us-east-1
+#
+# 3. CREATE TASK DEFINITION:
+#    - Upload aws-task-definition.json to repository root
+#    - Register: aws ecs register-task-definition --cli-input-json file://aws-task-definition.json
+#
+# 4. CREATE ECS SERVICE:
+#    aws ecs create-service \
+#      --cluster veezy-cluster \
+#      --service-name veezy-stack \
+#      --task-definition veezy-task \
+#      --desired-count 1 \
+#      --launch-type FARGATE \
+#      --network-configuration "awsvpcConfiguration={subnets=[subnet-xxx],securityGroups=[sg-xxx],assignPublicIp=ENABLED}"
+#
+# 5. ADD GITHUB SECRETS (Settings → Secrets and variables → Actions):
+#    - AWS_ACCESS_KEY_ID: Your IAM user access key
+#    - AWS_SECRET_ACCESS_KEY: Your IAM user secret key
+#    - NEXT_PUBLIC_SUPABASE_URL: https://your-project.supabase.co
+#    - NEXT_PUBLIC_SUPABASE_ANON_KEY: Your Supabase anon key
+#    - NEXT_PUBLIC_API_URL: https://api.yourdomain.com
+#    - NEXT_PUBLIC_LIVEKIT_URL: wss://your-project.livekit.cloud
+#
+# 6. CONFIGURE APPLICATION LOAD BALANCER (optional but recommended):
+#    - Target port 3000 (Next.js frontend)
+#    - Health check: /api/health
+#    - SSL/TLS certificate via AWS Certificate Manager
+#
+# 7. IAM PERMISSIONS REQUIRED:
+#    The AWS user needs these permissions:
+#    - ecr:GetAuthorizationToken
+#    - ecr:BatchCheckLayerAvailability
+#    - ecr:GetDownloadUrlForLayer
+#    - ecr:BatchGetImage
+#    - ecr:PutImage
+#    - ecr:InitiateLayerUpload
+#    - ecr:UploadLayerPart
+#    - ecr:CompleteLayerUpload
+#    - ecs:RegisterTaskDefinition
+#    - ecs:DescribeServices
+#    - ecs:UpdateService
+#    - ecs:DescribeTaskDefinition
+#    - iam:PassRole (for task execution role)
+#
+# ============================================

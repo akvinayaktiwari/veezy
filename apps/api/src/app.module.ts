@@ -8,6 +8,7 @@ import { AgentModule } from './agent/agent.module';
 import { LeadModule } from './lead/lead.module';
 import { BookingModule } from './booking/booking.module';
 import { VoiceAgentModule } from './voice-agent/voice-agent.module';
+import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
@@ -21,7 +22,7 @@ import { VoiceAgentModule } from './voice-agent/voice-agent.module';
     BookingModule,
     VoiceAgentModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, HealthController],
   providers: [AppService],
 })
 export class AppModule {}

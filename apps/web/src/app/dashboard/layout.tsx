@@ -9,15 +9,14 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const supabase = await createSupabaseServerClient();
-  const { data: { session } } = await supabase.auth.getSession();
-
-  if (!session) {
+  const { data: { user }, error } = await supabase.auth.getUser();
+  if (!user) {
     redirect('/auth/login');
   }
 
   return (
     <AgentProvider>
-      <DashboardLayoutClient userEmail={session.user.email}>
+      <DashboardLayoutClient userEmail={user.email}>
         {children}
       </DashboardLayoutClient>
     </AgentProvider>

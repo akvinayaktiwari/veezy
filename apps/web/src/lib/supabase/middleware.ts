@@ -12,7 +12,7 @@ export async function refreshAuthSession(request: NextRequest) {
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll() {
@@ -33,11 +33,10 @@ export async function refreshAuthSession(request: NextRequest) {
   const isPublicPath = publicPaths.some(path => request.nextUrl.pathname.startsWith(path));
   
   if (!isPublicPath) {
-    // Use getSession instead of getUser to avoid extra network calls
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session) {
-      // No session, redirect to auth/login
+    // Use getUser for secure authentication
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error || !user) {
+      // No user, redirect to auth/login
       const url = request.nextUrl.clone();
       url.pathname = '/auth/login';
       return NextResponse.redirect(url);

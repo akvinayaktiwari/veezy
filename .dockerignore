@@ -1,0 +1,105 @@
+# ============================================
+# .dockerignore - Exclude files from Docker build context
+# Reduces image size and speeds up builds
+# ============================================
+
+# Dependencies
+node_modules/
+**/node_modules/
+apps/*/node_modules/
+packages/*/node_modules/
+
+# Python virtual environments
+venv/
+.venv/
+apps/voice-agent/venv/
+apps/voice-agent/.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Voice Agent Models (CRITICAL - 2.8GB!)
+# These will be downloaded during Docker build
+apps/voice-agent/models/
+!apps/voice-agent/models/.gitkeep
+
+# Build outputs
+.next/
+.turbo/
+dist/
+build/
+out/
+*.log
+
+# Environment files (use build args instead)
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+
+# Testing
+coverage
+.nyc_output
+.pytest_cache
+.jest
+test-results
+
+# IDE/Editor
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation (unless needed)
+*.md
+!README.md
+docs
+
+# Certificates/Keys (security)
+*.pem
+*.key
+*.cert
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+tmp
+temp
+*.tmp
+
+# Docker files (don't copy docker configs into images)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Prisma
+apps/api/.env
+apps/api/prisma/*.db
+apps/api/prisma/*.db-journal
+
+# Voice Agent models (download during build or mount as volume)
+# Comment these out if you want models baked into image
+# apps/voice-agent/models/*
+# !apps/voice-agent/models/.gitkeep

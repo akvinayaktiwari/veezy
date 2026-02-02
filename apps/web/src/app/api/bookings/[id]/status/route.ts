@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_URL = process.env.API_URL || 'http://localhost:4000';
 
 // Public endpoint for updating booking status (e.g., marking as COMPLETED)
 export async function PATCH(

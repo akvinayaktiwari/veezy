@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_URL = process.env.API_URL || 'http://localhost:4000';
 
 // GET /api/leads/stats - Fetch lead statistics for a specific agent
 export async function GET(request: NextRequest) {
