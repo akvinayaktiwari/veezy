@@ -31,7 +31,7 @@ class Config(BaseSettings):
         description="Gemini model name"
     )
     vosk_model_path: str = Field(
-        default="models/vosk-model-small-en-us-0.4",
+        default="models/vosk-model-small-en-in-0.4",
         alias="VOSK_MODEL_PATH",
         description="Path to Vosk model directory"
     )

@@ -72,6 +72,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_here}
       # CORS allowed origins
       FRONTEND_URL: ${FRONTEND_URL:-http://nextjs-web:3000}
+      # Python Voice Agent URL (Docker network)
+      PYTHON_VOICE_AGENT_URL: http://voice-agent:8000
       # LiveKit configuration (for voice agent coordination)
       LIVEKIT_URL: ${LIVEKIT_URL}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
@@ -97,6 +99,12 @@ services:
     build:
       context: .
       dockerfile: apps/voice-agent/Dockerfile
+      args:
+        # Model configuration (can override via .env)
+        VOSK_MODEL_URL: ${VOSK_MODEL_URL:-https://alphacephei.com/vosk/models/vosk-model-small-en-in-0.4.zip}
+        VOSK_MODEL_NAME: ${VOSK_MODEL_NAME:-vosk-model-small-en-in-0.4}
+        PIPER_MODEL_URL: ${PIPER_MODEL_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx}
+        PIPER_CONFIG_URL: ${PIPER_CONFIG_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json}
     
     platform: linux/amd64
     container_name: veezy-voice-agent
@@ -106,6 +114,9 @@ services:
       # Python environment
       PYTHONUNBUFFERED: 1
       PORT: 8000
+      # Model paths (must match build args)
+      VOSK_MODEL_PATH: ${VOSK_MODEL_PATH:-models/vosk-model-small-en-in-0.4}
+      PIPER_MODEL_PATH: ${PIPER_MODEL_PATH:-models/piper/en_US-lessac-medium.onnx}
       # LiveKit configuration (real-time voice communication)
       LIVEKIT_URL: ${LIVEKIT_URL}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}

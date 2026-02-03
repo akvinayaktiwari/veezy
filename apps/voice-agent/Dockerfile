@@ -34,6 +34,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN groupadd --gid 1001 veezy && \
     useradd --uid 1001 --gid veezy --shell /bin/bash --create-home veezy
 
+# Build arguments for model configuration (can be overridden in docker-compose)
+ARG VOSK_MODEL_URL=https://alphacephei.com/vosk/models/vosk-model-small-en-in-0.4.zip
+ARG VOSK_MODEL_NAME=vosk-model-small-en-in-0.4
+ARG PIPER_MODEL_URL=https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx
+ARG PIPER_CONFIG_URL=https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json
+
 # Copy requirements first (layer caching optimization)
 COPY --chown=veezy:veezy apps/voice-agent/requirements.txt .
 
@@ -45,18 +51,18 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY --chown=veezy:veezy apps/voice-agent/ .
 
 # Create models directory structure
-RUN mkdir -p models/vosk-model-small-en-us-0.4 models/piper && \
+RUN mkdir -p models/${VOSK_MODEL_NAME} models/piper && \
     chown -R veezy:veezy models/
 
-# Download Vosk small English model (~40MB, optimized for real-time)
-RUN wget -q https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.4.zip -O /tmp/vosk.zip && \
+# Download Vosk model (configurable via build args)
+RUN wget -q ${VOSK_MODEL_URL} -O /tmp/vosk.zip && \
     unzip -q /tmp/vosk.zip -d models/ && \
     rm /tmp/vosk.zip && \
-    chown -R veezy:veezy models/vosk-model-small-en-us-0.4
+    chown -R veezy:veezy models/${VOSK_MODEL_NAME}
 
-# Download Piper TTS voice model (en_US-lessac-medium for natural speech)
-RUN wget -q https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx -O models/piper/en_US-lessac-medium.onnx && \
-    wget -q https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json -O models/piper/en_US-lessac-medium.onnx.json && \
+# Download Piper TTS voice model (configurable via build args)
+RUN wget -q ${PIPER_MODEL_URL} -O models/piper/en_US-lessac-medium.onnx && \
+    wget -q ${PIPER_CONFIG_URL} -O models/piper/en_US-lessac-medium.onnx.json && \
     chown -R veezy:veezy models/piper
 
 # Switch to non-root user
